@@ -8,7 +8,7 @@ name: '🔎 Agent: Reviewer (Gemini)'
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, ready_for_review]
   # 🦁 Beast Mode: Push Trigger
   push:
     branches:
