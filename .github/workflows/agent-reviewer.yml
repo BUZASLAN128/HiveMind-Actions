@@ -188,12 +188,14 @@ jobs:
       - name: Post Review (PR Mode)
         if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
             const fs = require('fs');
             
-            // Review sonucunu oku
+            // Review sonucunu oku (Turkish comment restored)
             let reviewText = '';
             try {
               reviewText = fs.readFileSync('review_comment.md', 'utf8');
@@ -329,21 +331,34 @@ jobs:
                 }
               }
 
-              // 🔄 SELF-CORRECTION LOOP: Trigger Coder if Changes Requested
+              // 🔄 SELF-CORRECTION LOOP: Trigger Jules (Google Labs) via REST API
               if (!approved) {
-                  // 🛡️ Retry Limit: Count previous auto-triggers to prevent infinite loop
                   const MAX_RETRIES = 5;
+                  
+                  // 1. Find existing session ID from comments
                   const comments = await github.rest.issues.listComments({
                       owner: context.repo.owner,
                       repo: context.repo.repo,
                       issue_number: issueNumber,
                       per_page: 100
                   });
+                  
                   const autoTriggers = comments.data.filter(c => c.body.includes('Reviewer Feedback (Automatic Trigger)')).length;
                   
-                  if (autoTriggers >= MAX_RETRIES) {
-                      console.log(`⚠️ Max retries (${MAX_RETRIES}) reached. Stopping self-correction loop.`);
-                      // Get issue author to mention
+                  // Find Session ID Pattern: <!-- JULES_SESSION_ID: 12345 -->
+                  let limitReached = autoTriggers >= MAX_RETRIES;
+                  let sessionId = null;
+                  const sessionMatch = comments.data
+                      .map(c => c.body.match(/<!-- JULES_SESSION_ID: (.+?) -->/))
+                      .filter(m => m)[0];
+                  
+                  if (sessionMatch) {
+                      sessionId = sessionMatch[1];
+                      console.log('🔗 Found existing Jules Session ID: ' + sessionId);
+                  }
+
+                  if (limitReached) {
+                      console.log('⚠️ Max retries (' + MAX_RETRIES + ') reached. Stopping self-correction loop.');
                       const issueDetails = await github.rest.issues.get({
                           owner: context.repo.owner,
                           repo: context.repo.repo,
@@ -351,38 +366,89 @@ jobs:
                       });
                       const issueAuthor = issueDetails.data.user.login;
                       
+                      const stopBody = '🛑 **Self-Correction Stopped**\n\n' +
+                          'Result: Rejected ' + MAX_RETRIES + ' times.\n' +
+                          '@' + issueAuthor + ' please check manually.\n' +
+                          '<!-- JULES_SESSION_ID: ' + (sessionId || 'none') + ' -->';
+
                       await github.rest.issues.createComment({
                           owner: context.repo.owner,
                           repo: context.repo.repo,
                           issue_number: issueNumber,
-                          body: `🛑 **Self-Correction Stopped**\n\nThe Reviewer Agent has rejected the changes **${MAX_RETRIES} times**.\n\n@${issueAuthor} - Human intervention is required. Please review the feedback and fix the issues manually.\n\n> 🔗 [PR #${context.payload.pull_request.number}](${context.payload.pull_request.html_url})`
+                          body: stopBody
                       });
-                  } else {
-                      console.log(`🔄 Triggering Coder for self-correction (Attempt ${autoTriggers + 1}/${MAX_RETRIES})...`);
-                      
-                      // 🛡️ Prompt Truncation: Prevent exceeding input limits
-                      const MAX_PROMPT_LEN = 6000;
-                      const truncatedReview = reviewText.length > MAX_PROMPT_LEN 
-                          ? reviewText.substring(0, MAX_PROMPT_LEN) + "\n...[TRUNCATED]" 
-                          : reviewText;
+                      return;
+                  }
 
-                      try {
-                          await github.rest.actions.createWorkflowDispatch({
-                              owner: context.repo.owner,
-                              repo: context.repo.repo,
-                              workflow_id: 'agent-coder.yml',
-                              ref: context.payload.repository.default_branch, 
-                              inputs: {
-                                  issue_number: String(issueNumber),
-                                  coder_prompt: `🔍 **Reviewer Feedback (Automatic Trigger)**\n\nThe Reviewer Agent found issues in your changes. Please fix them:\n\n${truncatedReview}\n\nReview Verdict: ${verdict}`,
-                                  comment_id: String(commentId || ''),
-                                  base_branch: context.payload.pull_request.head.ref // 🎯 Fix the existing feature branch
-                              }
+                  console.log('🔄 Triggering Jules API (Attempt ' + (autoTriggers + 1) + '/' + MAX_RETRIES + ')...');
+                  
+                  // Prepare Payload
+                  const apiKey = process.env.JULES_API_KEY;
+                  if (!apiKey) {
+                      console.log('❌ JULES_API_KEY not found in environment. Skipping auto-fix.');
+                      return;
+                  }
+                  
+                  // Usage of fetch (Node 18+)
+                  try {
+                      let julesResp;
+                      if (sessionId) {
+                          // CONTINUE EXISTING SESSION
+                          console.log('📨 Sending feedback to Session ' + sessionId + '...');
+                          const response = await fetch('https://jules.googleapis.com/v1alpha/sessions/' + sessionId + ':sendMessage', {
+                              method: 'POST',
+                              headers: {
+                                  'Content-Type': 'application/json',
+                                  'X-Goog-Api-Key': apiKey
+                              },
+                              body: JSON.stringify({ prompt: 'Reviewer Feedback:\n\n' + reviewText + '\n\nPlease fix these issues.' })
                           });
-                          console.log('✅ Coder Agent triggered for Self-Correction on branch:', context.payload.pull_request.head.ref);
-                      } catch (dispatchError) {
-                          console.error('❌ Failed to trigger Coder for Self-Correction:', dispatchError);
+                          if (!response.ok) throw new Error('Jules API Error: ' + response.status);
+                          julesResp = await response.json();
+                          console.log('✅ Feedback sent to Jules session.');
+                      } else {
+                          // CREATE NEW SESSION
+                          console.log('🆕 Creating NEW Jules Session...');
+                          const response = await fetch('https://jules.googleapis.com/v1alpha/sessions', {
+                              method: 'POST',
+                              headers: {
+                                  'Content-Type': 'application/json',
+                                  'X-Goog-Api-Key': apiKey
+                              },
+                              body: JSON.stringify({
+                                  prompt: 'Task: Fix issues in PR #' + context.payload.pull_request.number + '.\n\nReview Feedback:\n' + reviewText,
+                                  sourceContext: {
+                                      source: 'sources/github/' + context.repo.owner + '/' + context.repo.repo,
+                                      githubRepoContext: {
+                                          startingBranch: context.payload.pull_request.head.ref
+                                      }
+                                  },
+                                  automationMode: 'AUTO_CREATE_PR'
+                              })
+                          });
+                          if (!response.ok) throw new Error('Jules API Error: ' + response.status);
+                          julesResp = await response.json();
+                          sessionId = julesResp.id || julesResp.name.split('/').pop();
+                          console.log('✅ New Session Created: ' + sessionId);
                       }
+
+                      // Post confirmation comment WITH Session ID for next run
+                      const confirmBody = '🤖 **Jules Triggered (REST API)**\n\n' +
+                          'I have communicated the feedback to Jules.\n' +
+                          '**Session ID:** `' + sessionId + '`\n\n' +
+                          '> Loop: ' + (autoTriggers + 1) + '/' + MAX_RETRIES + '\n\n' +
+                          '<!-- JULES_SESSION_ID: ' + sessionId + ' -->\n' +
+                          '<!-- Reviewer Feedback (Automatic Trigger) -->';
+
+                      await github.rest.issues.createComment({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: issueNumber,
+                          body: confirmBody
+                      });
+                      
+                  } catch (apiError) {
+                      console.error('❌ Jules REST API Failed:', apiError);
                   }
               }
             }
