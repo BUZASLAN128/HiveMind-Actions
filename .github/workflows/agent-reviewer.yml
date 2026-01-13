@@ -210,7 +210,7 @@ jobs:
 
                   **Verdict:** ${verdict}
 
-                  ${approved ? '> This PR is ready to merge.' : '> Please fix the issues mentioned above.'}`
+                  ${approved ? '> This PR is ready to merge.' : '> @google-labs-jules Please fix the issues mentioned above.'}`
                 });
             }
             
