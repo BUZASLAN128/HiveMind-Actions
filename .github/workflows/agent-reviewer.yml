@@ -280,7 +280,7 @@ jobs:
               // 🔄 SELF-CORRECTION LOOP: Trigger Coder if Changes Requested
               if (!approved) {
                   // 🛡️ Retry Limit: Count previous auto-triggers to prevent infinite loop
-                  const MAX_RETRIES = 3;
+                  const MAX_RETRIES = 5;
                   const comments = await github.rest.issues.listComments({
                       owner: context.repo.owner,
                       repo: context.repo.repo,
@@ -291,11 +291,19 @@ jobs:
                   
                   if (autoTriggers >= MAX_RETRIES) {
                       console.log(`⚠️ Max retries (${MAX_RETRIES}) reached. Stopping self-correction loop.`);
+                      // Get issue author to mention
+                      const issueDetails = await github.rest.issues.get({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: issueNumber
+                      });
+                      const issueAuthor = issueDetails.data.user.login;
+                      
                       await github.rest.issues.createComment({
                           owner: context.repo.owner,
                           repo: context.repo.repo,
                           issue_number: issueNumber,
-                          body: `🛑 **Self-Correction Stopped**: The Reviewer Agent has rejected the changes ${MAX_RETRIES} times. Human intervention is required.`
+                          body: `🛑 **Self-Correction Stopped**\n\nThe Reviewer Agent has rejected the changes **${MAX_RETRIES} times**.\n\n@${issueAuthor} - Human intervention is required. Please review the feedback and fix the issues manually.\n\n> 🔗 [PR #${context.payload.pull_request.number}](${context.payload.pull_request.html_url})`
                       });
                   } else {
                       console.log(`🔄 Triggering Coder for self-correction (Attempt ${autoTriggers + 1}/${MAX_RETRIES})...`);
