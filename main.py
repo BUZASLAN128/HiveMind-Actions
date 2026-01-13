@@ -1,5 +1,5 @@
-def divide_by_zero():
-    return 1 / 0
+def safe_function():
+    print("This is a safe function.")
 
 if __name__ == "__main__":
-    divide_by_zero()
+    safe_function()
