@@ -104,7 +104,6 @@ def analyze_issue(client: genai.Client, prompt: str, max_retries: int = 2) -> Di
         AI'dan gelen JSON yanıtını içeren bir sözlük.
     """
     import re
-    from google.api_core import exceptions as google_exceptions
     
     for attempt in range(max_retries + 1):
         logger.info(f"🤖 Analyzing issue with Gemini AI (Attempt {attempt + 1}/{max_retries + 1})...")
