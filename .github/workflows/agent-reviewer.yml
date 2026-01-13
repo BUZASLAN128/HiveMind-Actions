@@ -1,0 +1,301 @@
+# 🔎 HiveMind Reviewer Agent
+# PR code review
+#
+# Trigger: pull_request opened (Created by Coder implementation)
+# Task: Inspect Code, Check Rules, Security Analysis
+
+name: '🔎 Agent: Reviewer (Gemini)'
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  # 🦁 Beast Mode: Push Trigger
+  push:
+    branches:
+      - 'dev'
+
+concurrency:
+  group: reviewer-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: 'bash'
+
+jobs:
+  review:
+    name: '📝 Code Review'
+    runs-on: ubuntu-latest
+    # Inspect PRs opened by the Coder or AI branches
+    # Or PRs opened by the bot (github-actions[bot])
+    # OR if it's a Push event (Beast Mode)
+    if: |
+      github.event_name == 'push' ||
+      contains(github.event.pull_request.head.ref, 'coder') ||
+      contains(github.event.pull_request.head.ref, 'ai-') ||
+      contains(github.event.pull_request.head.ref, 'feat/') ||
+      github.event.pull_request.user.login == 'github-actions[bot]' ||
+      github.event.pull_request.user.login == 'google-labs-code'
+    
+    permissions:
+      contents: write # Required for commit comments
+      pull-requests: write
+      issues: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install google-genai
+
+      - name: Get Diff (Smart Switch)
+        id: diff
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "📋 PR Mode detected."
+            git fetch origin ${{ github.event.pull_request.base.ref }}
+            git diff origin/${{ github.event.pull_request.base.ref }}...HEAD > coder_changes.diff
+          else
+            echo "🦁 Beast Mode detected (Push)."
+            # Get diff for Push: Current vs Previous commit
+            if [ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]; then
+               git diff HEAD^ HEAD > coder_changes.diff || git diff --cached > coder_changes.diff
+            else
+               git diff ${{ github.event.before }} ${{ github.event.after }} > coder_changes.diff || git diff HEAD^ HEAD > coder_changes.diff
+            fi
+          fi
+          
+          ls -lh coder_changes.diff
+
+      - name: Notify Review Started (PR Only)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Find associated issue
+            const prBody = context.payload.pull_request.body || '';
+            const issueMatch = prBody.match(/Fixes #(\d+)/) || prBody.match(/#(\d+)/);
+            const issueNumber = issueMatch ? parseInt(issueMatch[1]) : null;
+            
+            if (issueNumber) {
+              const marker = '<!-- SWARM_STATUS_REPORT -->';
+              const idMatch = prBody.match(/<!-- SWARM_COMMENT_ID: (\d+) -->/);
+              const commentId = idMatch ? idMatch[1] : null;
+
+              const table = [
+                '| Agent | Status | Task |',
+                '|-------|--------|------|',
+                '| 🔍 Analyst | ✅ **COMPLETED** | Issue Analysis |',
+                '| 🤖 Coder | ✅ **COMPLETED** | Implementation |',
+                '| 🔎 Reviewer | 🔄 **WORKING** | PR Review |'
+              ].join('\n');
+
+              const taskList = [
+                '### 📝 Task List',
+                '- [x] Issue Analysis (Analyst)',
+                '- [x] Code Changes (Coder)',
+                '- [x] Create PR (Coder)',
+                '- [/] PR Review (Reviewer)'
+              ].join('\n');
+
+              const header = `## 🐝 HiveMind Status Report ${marker}`;
+              const body = `${header}\n\n${table}\n\n${taskList}\n\n> 🔎 Reviewer: PR #${context.payload.pull_request.number} is being analyzed...\n> 🔗 [View PR](${context.payload.pull_request.html_url})`;
+
+              if (commentId) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: parseInt(commentId),
+                  body: body
+                });
+              } else {
+                // Fallback to search
+                const comments = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  per_page: 50,
+                  sort: 'created',
+                  direction: 'desc'
+                });
+                const statusComment = comments.data.find(c => c.body.includes(marker));
+                if (statusComment) {
+                  await github.rest.issues.updateComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: statusComment.id,
+                    body: body
+                  });
+                } else {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issueNumber,
+                    body: body
+                  });
+                }
+              }
+            }
+
+      - name: Read Swarm Rules
+        id: rules
+        run: |
+          if [ -f .github/swarm_rules.md ]; then
+            content=$(cat .github/swarm_rules.md)
+            echo "RULES<<EOF" >> $GITHUB_ENV
+            echo "$content" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          else
+            echo "RULES=No specific rules found." >> $GITHUB_ENV
+          fi
+
+      - name: Run Gemini Review
+        id: review
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_OUTPUT: ${{ github.output }}
+        run: |
+          # Run swarm_reviewer.py script
+          # Script will read coder_changes.diff and create review_comment.md
+          # It will also write approved=true/false to GITHUB_OUTPUT
+          python .github/scripts/swarm_reviewer.py
+
+      - name: Post Review (PR Mode)
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Review sonucunu oku
+            let reviewText = '';
+            try {
+              reviewText = fs.readFileSync('review_comment.md', 'utf8');
+            } catch (e) {
+              reviewText = 'Review result could not be read or script failed.';
+            }
+
+            // Verify approval from script output (from steps/env)
+            // Using steps.review.outputs.approved
+
+            // swarm_reviewer.py GITHUB_OUTPUT'a approved yazıyor, bunu steps objesinden alacağız.
+            const approved = '${{ steps.review.outputs.approved }}' === 'true';
+            const verdict = approved ? '✅ APPROVED' : '❌ REJECTED';
+            
+            // PR'a review yaz
+            if (reviewText.length > 10) {
+                await github.rest.pulls.createReview({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: context.payload.pull_request.number,
+                  event: approved ? 'APPROVE' : 'REQUEST_CHANGES',
+                  body: `## 🔎 Gemini Code Review
+
+                  ${reviewText}
+
+                  ---
+
+                  **Verdict:** ${verdict}
+
+                  ${approved ? '> This PR is ready to merge.' : '> Please fix the issues mentioned above.'}`
+                });
+            }
+            
+            // Update associated issue
+            const prBody = context.payload.pull_request.body || '';
+            const issueMatch = prBody.match(/Fixes #(\d+)/) || prBody.match(/#(\d+)/);
+            const issueNumber = issueMatch ? parseInt(issueMatch[1]) : null;
+            
+            if (issueNumber) {
+              const marker = '<!-- SWARM_STATUS_REPORT -->';
+              const idMatch = prBody.match(/<!-- SWARM_COMMENT_ID: (\d+) -->/);
+              const commentId = idMatch ? idMatch[1] : null;
+
+              const table = [
+                '| Agent | Status | Task |',
+                '|-------|--------|------|',
+                '| 🔍 Analyst | ✅ **COMPLETED** | Issue Analysis |',
+                '| 🤖 Coder | ✅ **COMPLETED** | Implementation |',
+                '| 🔎 Reviewer | ✅ **COMPLETED** | PR Review |'
+              ].join('\n');
+
+              const taskList = [
+                '### 📝 Task List',
+                '- [x] Issue Analysis (Analyst)',
+                '- [x] Code Changes (Coder)',
+                '- [x] Create PR (Coder)',
+                '- [x] PR Review (Reviewer)'
+              ].join('\n');
+
+              const header = `## 🐝 HiveMind Status Report ${marker}`;
+              const body = `${header}\n\n${table}\n\n${taskList}\n\n---\n\n**Verdict:** ${verdict}\n\n🔗 [PR #${context.payload.pull_request.number}](${context.payload.pull_request.html_url})\n\n${approved ? '> ✅ **Ready to Merge!** Review passed.' : '> ⚠️ **Changes Needed.** Please address the issues.'}`;
+
+              if (commentId) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: parseInt(commentId),
+                  body: body
+                });
+              } else {
+                const comments = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  per_page: 50,
+                  sort: 'created',
+                  direction: 'desc'
+                });
+                const statusComment = comments.data.find(c => c.body.includes(marker));
+                if (statusComment) {
+                  await github.rest.issues.updateComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: statusComment.id,
+                    body: body
+                  });
+                } else {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issueNumber,
+                    body: body
+                  });
+                }
+              }
+            }
+      - name: Post Review (Beast Mode - Push)
+        if: github.event_name == 'push'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let reviewText = '';
+            try {
+              reviewText = fs.readFileSync('review_comment.md', 'utf8');
+            } catch (e) {
+              reviewText = 'Review result could not be read.';
+            }
+
+            const approved = '${{ steps.review.outputs.approved }}' === 'true';
+            const verdict = approved ? '✅ CLEAN' : '❌ ISSUES FOUND';
+            
+            // Should not comment if review text is too short (no changes)
+            if (reviewText.length > 10) {
+               await github.rest.repos.createCommitComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  commit_sha: context.sha,
+                  body: `## 🦁 Beast Mode Code Inspector\n\n${reviewText}\n\n---\n\n**Status:** ${verdict}`
+               });
+            }
