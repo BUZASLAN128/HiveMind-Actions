@@ -103,7 +103,7 @@ def format_review_comment(data: Dict[str, Any]) -> str:
 ### ✅ Positives
 {positives}
 
-### ⚠️ Issues Detected
+### ⚠️ Issues
 {issues}
 
 ### 💡 Suggestions
