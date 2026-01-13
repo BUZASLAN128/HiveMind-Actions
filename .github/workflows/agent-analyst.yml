@@ -17,7 +17,6 @@ jobs:
   analyze:
     name: '📊 Issue Analysis'
     runs-on: ubuntu-latest
-    runs-on: ubuntu-latest
     # Authorized users only (Owner or Collaborators) - Customize as needed
     if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '@analyst')
     
