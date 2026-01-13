@@ -35,8 +35,10 @@ jobs:
       contains(github.event.pull_request.head.ref, 'coder') ||
       contains(github.event.pull_request.head.ref, 'ai-') ||
       contains(github.event.pull_request.head.ref, 'feat/') ||
+      contains(github.event.pull_request.head.ref, 'add-') ||
       github.event.pull_request.user.login == 'github-actions[bot]' ||
-      github.event.pull_request.user.login == 'google-labs-code'
+      github.event.pull_request.user.login == 'google-labs-code' ||
+      github.event.pull_request.user.login == 'google-labs-jules'
     
     permissions:
       contents: write # Required for commit comments
