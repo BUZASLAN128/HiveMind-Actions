@@ -274,6 +274,28 @@ jobs:
                   });
                 }
               }
+
+              // 🔄 SELF-CORRECTION LOOP: Trigger Coder if Changes Requested
+              if (!approved) {
+                  console.log('❌ Review failed. Triggering Coder for self-correction...');
+                  try {
+                      await github.rest.actions.createWorkflowDispatch({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          workflow_id: 'agent-coder.yml',
+                          ref: context.payload.repository.default_branch, 
+                          inputs: {
+                              issue_number: String(issueNumber),
+                              coder_prompt: `🔍 **Reviewer Feedback (Automatic Trigger)**\n\nThe Reviewer Agent found issues in your changes. Please fix them:\n\n${reviewText}\n\nReview Verdict: ${verdict}`,
+                              comment_id: String(commentId || ''),
+                              base_branch: context.payload.pull_request.head.ref // 🎯 Fix the existing feature branch
+                          }
+                      });
+                      console.log('✅ Coder Agent triggered for Self-Correction on branch:', context.payload.pull_request.head.ref);
+                  } catch (dispatchError) {
+                      console.error('❌ Failed to trigger Coder for Self-Correction:', dispatchError);
+                  }
+              }
             }
       - name: Post Review (Beast Mode - Push)
         if: github.event_name == 'push'

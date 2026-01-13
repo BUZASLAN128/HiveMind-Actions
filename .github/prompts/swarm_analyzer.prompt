@@ -30,7 +30,7 @@ ${{ rules }}
     "Step 1: ...",
     "Step 2: ..."
   ],
-  "coder_instructions": "Very detailed, step-by-step technical instructions for the Coder Agent. Capture exactly what the user wants.",
+  "coder_instructions": "ONLY the precise technical task and implementation details for the Coder. DO NOT include the full codebase content, previous conversation history, or generic rules. Keep it focused on the diff to be generated.",
   "risks": ["Risks..."],
   "estimated_complexity": "low/medium/high"
 }}
