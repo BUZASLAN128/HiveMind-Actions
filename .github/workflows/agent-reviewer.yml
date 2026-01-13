@@ -340,7 +340,7 @@ jobs:
             const approved = '${{ steps.review.outputs.approved }}' === 'true';
             const verdict = approved ? '✅ CLEAN' : '❌ ISSUES FOUND';
             
-            // Should not comment if review text is too short (no changes)
+            // 1. Post Commit Comment (Always)
             if (reviewText.length > 10) {
                await github.rest.repos.createCommitComment({
                   owner: context.repo.owner,
@@ -348,4 +348,30 @@ jobs:
                   commit_sha: context.sha,
                   body: `## 🦁 Beast Mode Code Inspector\n\n${reviewText}\n\n---\n\n**Status:** ${verdict}`
                });
+            }
+
+            // 2. Create Critical Issue (If REJECTED)
+            if (!approved) {
+              const commitSha = context.sha.substring(0, 7);
+              const author = context.payload.pusher.name || context.actor;
+              
+              const title = `🚨 Critical Issue Detected in Commit ${commitSha}`;
+              const body = `### 🛑 Critical Issues Found during Push Analysis\n\n` +
+                           `**Commit:** ${context.sha}\n` +
+                           `**Author:** @${author}\n\n` +
+                           `The **Reviewer Agent** detected critical problems in the recent push. Please address them immediately.\n\n` +
+                           `---\n\n` +
+                           `### 🔎 Review Findings\n\n${reviewText}\n\n` +
+                           `> This issue was automatically created by HiveMind Beast Mode.`;
+
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['bug', 'critical', 'automated-review'],
+                assignees: [context.actor]
+              });
+              
+              console.log('🚨 Critical Issue created successfully!');
             }
