@@ -30,7 +30,7 @@ jobs:
     # Inspect PRs opened by the Coder or AI branches
     # Or PRs opened by the bot (github-actions[bot])
     # OR if it's a Push event (Beast Mode)
-    if: |
+    if: >-
       github.event_name == 'push' ||
       contains(github.event.pull_request.head.ref, 'coder') ||
       contains(github.event.pull_request.head.ref, 'ai-') ||
