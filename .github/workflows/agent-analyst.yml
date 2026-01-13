@@ -1,16 +1,18 @@
 # 🔍 HiveMind Analyst Agent
 # Issue analysis and planning
-# Trigger: @analyst comment
-# Task: Analyze Issue, Create Plan, Trigger Coder
+# Trigger: @analyst comment (Issue or Commit)
+# Task: Analyze Issue/Commit, Create Plan, Trigger Coder
 
 name: '🔍 Agent: Analyst (Gemini)'
 
 on:
   issue_comment:
     types: [created]
+  commit_comment:
+    types: [created]
 
 concurrency:
-  group: analyst-${{ github.event.issue.number }}
+  group: analyst-${{ github.event.issue.number || github.event.comment.commit_id }}
   cancel-in-progress: false
 
 jobs:
@@ -18,7 +20,7 @@ jobs:
     name: '📊 Issue Analysis'
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'issue_comment' && 
+      (github.event_name == 'issue_comment' || github.event_name == 'commit_comment') && 
       contains(github.event.comment.body, '@analyst') && 
       (github.event.comment.author_association == 'OWNER' || 
        github.event.comment.author_association == 'COLLABORATOR' || 
@@ -27,6 +29,7 @@ jobs:
     permissions:
       contents: read
       issues: write
+      pull-requests: write
       actions: write  # Required for workflow_dispatch
     
     steps:
@@ -47,95 +50,129 @@ jobs:
         with:
           script: |
             const marker = '<!-- SWARM_STATUS_REPORT -->';
-            const issueNumber = context.payload.issue.number;
+            // Handle both Issue and Commit contexts
+            const isIssue = context.eventName === 'issue_comment';
+            const issueNumber = isIssue ? context.payload.issue.number : null;
+            const commitId = !isIssue ? context.payload.comment.commit_id : null;
             
-            await github.rest.reactions.createForIssueComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: context.payload.comment.id,
-              content: 'eyes'
-            });
+            // Add reaction
+            if (isIssue) {
+                await github.rest.reactions.createForIssueComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: context.payload.comment.id,
+                  content: 'eyes'
+                });
+            } else {
+                await github.rest.reactions.createForCommitComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: context.payload.comment.id,
+                  content: 'eyes'
+                });
+            }
 
-            // Search for status comment
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issueNumber,
-              per_page: 50
-            });
-            const statusComment = comments.data.find(c => c.body.includes(marker));
-
+            // For commits, we can't post a status report to an issue easily without an issue number.
+            // But if it's a COMMIT comment, we can reply to the commit.
+            
             const table = [
               '| Agent | Status | Task |',
               '|-------|--------|------|',
-              '| 🔍 Analyst | ⏳ **WORKING** | Issue Analysis |',
+              '| 🔍 Analyst | ⏳ **WORKING** | Analysis |',
               '| 🤖 Coder | ⏸️ Waiting | - |',
               '| 🔎 Reviewer | ⏸️ Waiting | - |'
             ].join('\n');
 
             const taskList = [
               '### 📝 Task List',
-              '- [/] Issue Analysis (Analyst)',
+              '- [/] Analysis (Analyst)',
               '- [ ] Code Changes (Coder)',
               '- [ ] Create PR (Coder)',
               '- [ ] PR Review (Reviewer)'
             ].join('\n');
 
             const header = `## 🐝 HiveMind Status Report ${marker}`;
-            const body = `${header}\n\n${table}\n\n${taskList}\n\n> 🔍 Analyst: Analyzing issue, please wait...`;
+            const body = `${header}\n\n${table}\n\n${taskList}\n\n> 🔍 Analyst: Analyzing request, please wait...`;
 
-            if (statusComment) {
-              await github.rest.issues.deleteComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: statusComment.id
-              });
+            let resp;
+            if (isIssue) {
+                // Delete old status if exists
+                const comments = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  per_page: 50
+                });
+                const statusComment = comments.data.find(c => c.body.includes(marker));
+                if (statusComment) {
+                  await github.rest.issues.deleteComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: statusComment.id
+                  });
+                }
+                resp = await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: body
+                });
+            } else {
+                // For commits, simpler flow: just reply to the commit
+                resp = await github.rest.repos.createCommitComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    commit_sha: commitId,
+                    body: body
+                });
             }
             
-            const resp = await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issueNumber,
-              body: body
-            });
             core.setOutput('comment_id', String(resp.data.id));
+            core.setOutput('is_issue', String(isIssue));
+            if (issueNumber) core.setOutput('issue_number', String(issueNumber));
+            if (commitId) core.setOutput('commit_id', String(commitId));
 
       - name: Run Gemini Analysis
         id: analysis
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
-          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || '0' }}
+          ISSUE_TITLE: ${{ github.event.issue.title || 'Commit Comment Request' }}
+          ISSUE_BODY: ${{ github.event.issue.body || 'Request triggered via commit comment.' }}
           TRIGGERING_COMMENT: ${{ github.event.comment.body }}
         run: |
           python .github/scripts/swarm_analyzer.py
 
-      - name: Post Analysis & Trigger Jules
+      - name: Post Analysis & Trigger Coder
         uses: actions/github-script@v7
         if: steps.analysis.outputs.should_proceed == 'true'
         env:
           COMMENT_ID: ${{ steps.setup.outputs.comment_id }}
+          IS_ISSUE: ${{ steps.setup.outputs.is_issue }}
+          ISSUE_NUMBER: ${{ steps.setup.outputs.issue_number }}
+          COMMIT_ID: ${{ steps.setup.outputs.commit_id }}
         with:
           script: |
             const fs = require('fs');
             const summary = fs.readFileSync('analysis_summary.md', 'utf8');
             const coderPrompt = fs.readFileSync('coder_task.txt', 'utf8');
-            const issueNumber = context.payload.issue.number;
+            const isIssue = process.env.IS_ISSUE === 'true';
+            const issueNumber = process.env.ISSUE_NUMBER ? parseInt(process.env.ISSUE_NUMBER) : 0;
+            const commitId = process.env.COMMIT_ID;
             const commentId = process.env.COMMENT_ID;
             const marker = '<!-- SWARM_STATUS_REPORT -->';
 
             const table = [
               '| Agent | Status | Task |',
               '|-------|--------|------|',
-              '| 🔍 Analyst | ✅ **COMPLETED** | Issue Analysis |',
-              '| 🤖 Coder | 🚀 **STARTING...** | Code Implementation |',
+              '| 🔍 Analyst | ✅ **COMPLETED** | Analysis |',
+              '| 🤖 Coder | 🚀 **STARTING...** | Implementation |',
               '| 🔎 Reviewer | ⏸️ Waiting | - |'
             ].join('\n');
 
             const taskList = [
               '### 📝 Task List',
-              '- [x] Issue Analysis (Analyst)',
+              '- [x] Analysis (Analyst)',
               '- [/] Code Changes (Coder)',
               '- [ ] Create PR (Coder)',
               '- [ ] PR Review (Reviewer)'
@@ -144,80 +181,82 @@ jobs:
             const header = `## 🐝 HiveMind Status Report ${marker}`;
             const body = `${header}\n\n${summary}\n\n${table}\n\n${taskList}\n\n> 🤖 Coder Agent triggered directly. Starting implementation...`;
 
-            if (commentId) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: parseInt(commentId),
-                body: body
-              });
+            if (isIssue) {
+                if (commentId) {
+                  await github.rest.issues.updateComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: parseInt(commentId),
+                    body: body
+                  });
+                }
             } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issueNumber,
-                body: body
-              });
+                if (commentId) {
+                   await github.rest.repos.updateCommitComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      comment_id: parseInt(commentId),
+                      body: body
+                   });
+                }
             }
+            
+            let baseBranch = context.payload.repository.default_branch;
+            // Best effort to find branch for commit, defaulting to default_branch
             
             try {
               await github.rest.actions.createWorkflowDispatch({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 workflow_id: 'agent-coder.yml',
-                ref: context.payload.repository.default_branch,
+                ref: baseBranch,
                 inputs: {
-                  issue_number: String(issueNumber),
+                  issue_number: String(issueNumber), // 0 for commits
                   coder_prompt: coderPrompt.substring(0, 65000),
                   comment_id: String(commentId),
-                  base_branch: context.payload.repository.default_branch
+                  base_branch: baseBranch
                 }
               });
               console.log('✅ Coder workflow triggered successfully!');
             } catch (dispatchError) {
               console.error('❌ Coder workflow could not be triggered:', dispatchError.message);
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issueNumber,
-                labels: ['ai-ready']
-              });
+              // Can't label a commit easily, so just log error
             }
 
       - name: Notify Failure
         if: steps.analysis.outputs.should_proceed != 'true'
         uses: actions/github-script@v7
+        env:
+          COMMENT_ID: ${{ steps.setup.outputs.comment_id }}
+          IS_ISSUE: ${{ steps.setup.outputs.is_issue }}
         with:
           script: |
-            const marker = '<!-- SWARM_STATUS_REPORT -->';
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.issue.number,
-            });
-            const statusComment = comments.data.find(c => c.body.includes(marker));
-
+            const isIssue = process.env.IS_ISSUE === 'true';
+            const commentId = process.env.COMMENT_ID;
+            
             const table = [
               '| Agent | Status | Task |',
               '|-------|--------|------|',
-              '| 🔍 Analyst | 🛑 **STOPPED** | Issue Analysis |',
+              '| 🔍 Analyst | 🛑 **STOPPED** | Analysis |',
               '| 🤖 Coder | 🚫 Cancelled | - |'
             ].join('\n');
 
-            const body = '## 🛑 Analysis Result: Stopped\n\nAnalyst Agent decided that this issue cannot be resolved automatically.\n\n' + table;
+            const body = '## 🛑 Analysis Result: Stopped\n\nAnalyst Agent decided that this issue/request cannot be resolved automatically.\n\n' + table;
 
-            if (statusComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: statusComment.id,
-                body: body
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.payload.issue.number,
-                body: body
-              });
+            if (commentId) {
+                if (isIssue) {
+                  await github.rest.issues.updateComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: parseInt(commentId),
+                    body: body
+                  });
+                } else {
+                   await github.rest.repos.updateCommitComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      comment_id: parseInt(commentId),
+                      body: body
+                   });
+                }
             }
