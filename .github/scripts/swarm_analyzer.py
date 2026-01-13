@@ -75,30 +75,75 @@ def load_and_format_prompt(prompt_path: Path, issue_data: Dict[str, Any], contex
         rules=rules
     )
 
-def analyze_issue(client: genai.Client, prompt: str) -> Dict[str, Any]:
+def analyze_issue(client: genai.Client, prompt: str, max_retries: int = 2) -> Dict[str, Any]:
     """
     Generates an issue analysis from the AI model using the provided prompt.
+    Includes robust JSON parsing with retries and regex fallback.
 
     Args:
         client: genai.Client to use.
         prompt: Formatted prompt to send to AI.
+        max_retries: Maximum number of retries on JSON parse failure.
 
     Returns:
         AI'dan gelen JSON yanıtını içeren bir sözlük.
     """
-    logger.info("🤖 Analyzing issue with Gemini AI...")
-    response = client.models.generate_content(
-        model='gemini-2.0-flash',
-        contents=prompt
-    )
-    result_text = response.text.strip()
+    import re
+    
+    for attempt in range(max_retries + 1):
+        logger.info(f"🤖 Analyzing issue with Gemini AI (Attempt {attempt + 1}/{max_retries + 1})...")
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=prompt
+            )
+            result_text = response.text.strip()
+            
+            # Method 1: Standard markdown block extraction
+            json_text = result_text
+            if '```json' in result_text:
+                json_text = result_text.split('```json')[1].split('```')[0]
+            elif '```' in result_text:
+                json_text = result_text.split('```')[1].split('```')[0]
+            
+            try:
+                return json.loads(json_text.strip())
+            except json.JSONDecodeError:
+                logger.warning("Standard JSON parse failed, trying regex fallback...")
+            
+            # Method 2: Regex extraction
+            json_match = re.search(r'\{[\s\S]*\}', result_text)
+            if json_match:
+                try:
+                    return json.loads(json_match.group(0))
+                except json.JSONDecodeError:
+                    logger.warning("Regex JSON parse also failed.")
+            
+            # Method 3: Key-by-key extraction (last resort)
+            logger.warning("Attempting key-by-key extraction as last resort...")
+            fallback_data = {
+                'should_proceed': 'true' in result_text.lower() and 'should_proceed' in result_text.lower(),
+                'issue_type': 'code_request' if 'code' in result_text.lower() else 'unclear',
+                'analysis': 'AI response could not be parsed. Manual review required.',
+                'coder_instructions': prompt[:5000],  # Pass partial prompt as fallback
+                'plan': ['Manual review required due to parsing error'],
+                'files_to_change': [],
+                'estimated_complexity': 'unknown',
+                'risks': ['AI response parsing failed']
+            }
+            logger.warning(f"Using fallback data: {fallback_data}")
+            return fallback_data
+            
+        except Exception as e:
+            logger.error(f"Attempt {attempt + 1} failed: {e}")
+            if attempt < max_retries:
+                logger.info("Retrying...")
+                continue
+            raise
+    
+    # Should not reach here, but just in case
+    raise RuntimeError("All retry attempts exhausted.")
 
-    if '```json' in result_text:
-        result_text = result_text.split('```json')[1].split('```')[0]
-    elif '```' in result_text:
-        result_text = result_text.split('```')[1].split('```')[0]
-
-    return json.loads(result_text.strip())
 
 def write_outputs(data: Dict[str, Any]) -> None:
     """
