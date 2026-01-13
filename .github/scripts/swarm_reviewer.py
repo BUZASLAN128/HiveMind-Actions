@@ -89,9 +89,9 @@ def format_review_comment(data: Dict[str, Any]) -> str:
     Returns:
         Formatted comment text in markdown.
     """
-    positives = "\n".join([f"- {p}" for p in data.get("positives", [])])
-    issues = "\n".join([f"- {i}" for i in data.get("issues", [])])
-    suggestions = "\n".join([f"- {s}" for s in data.get("suggestions", [])])
+    positives = "\n".join([f"- {p}" for p in data.get("positives", [])]) if data.get("positives") else "- No specific positives mentioned."
+    issues = "\n".join([f"- {i}" for i in data.get("issues", [])]) if data.get("issues") else "- No issues detected. Good job! 👏"
+    suggestions = "\n".join([f"- {s}" for s in data.get("suggestions", [])]) if data.get("suggestions") else "- No additional suggestions."
 
     return f"""## 🔎 Gemini Code Review
 
