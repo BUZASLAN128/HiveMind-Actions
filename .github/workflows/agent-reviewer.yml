@@ -197,7 +197,7 @@ jobs:
           script: |
             const fs = require('fs');
             
-            // Review sonucunu oku (Turkish comment restored)
+            // Read review result
             let reviewText = '';
             try {
               reviewText = fs.readFileSync('review_comment.md', 'utf8');
