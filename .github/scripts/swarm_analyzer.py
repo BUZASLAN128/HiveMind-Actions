@@ -75,6 +75,21 @@ def load_and_format_prompt(prompt_path: Path, issue_data: Dict[str, Any], contex
         rules=rules
     )
 
+def _redact_sensitive_data(text: str) -> str:
+    """Redacts potentially sensitive data from text (API keys, passwords, etc.)."""
+    import re
+    # Redact patterns that look like API keys or secrets
+    patterns = [
+        (r'(sk-[a-zA-Z0-9]{20,})', '[REDACTED_API_KEY]'),  # OpenAI-style
+        (r'(AIza[a-zA-Z0-9_-]{35})', '[REDACTED_GCLOUD_KEY]'),  # Google API Key
+        (r'(ghp_[a-zA-Z0-9]{36})', '[REDACTED_GITHUB_TOKEN]'),  # GitHub PAT
+        (r'(password\s*[=:]\s*["\']?[^"\']+["\']?)', '[REDACTED_PASSWORD]'),  # Passwords
+        (r'(secret\s*[=:]\s*["\']?[^"\']+["\']?)', '[REDACTED_SECRET]'),  # Secrets
+    ]
+    for pattern, replacement in patterns:
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+    return text
+
 def analyze_issue(client: genai.Client, prompt: str, max_retries: int = 2) -> Dict[str, Any]:
     """
     Generates an issue analysis from the AI model using the provided prompt.
@@ -89,6 +104,7 @@ def analyze_issue(client: genai.Client, prompt: str, max_retries: int = 2) -> Di
         AI'dan gelen JSON yanıtını içeren bir sözlük.
     """
     import re
+    from google.api_core import exceptions as google_exceptions
     
     for attempt in range(max_retries + 1):
         logger.info(f"🤖 Analyzing issue with Gemini AI (Attempt {attempt + 1}/{max_retries + 1})...")
@@ -121,21 +137,44 @@ def analyze_issue(client: genai.Client, prompt: str, max_retries: int = 2) -> Di
             
             # Method 3: Key-by-key extraction (last resort)
             logger.warning("Attempting key-by-key extraction as last resort...")
+            # Redact sensitive data before including in fallback
+            safe_prompt = _redact_sensitive_data(prompt[:2000])
             fallback_data = {
                 'should_proceed': 'true' in result_text.lower() and 'should_proceed' in result_text.lower(),
                 'issue_type': 'code_request' if 'code' in result_text.lower() else 'unclear',
                 'analysis': 'AI response could not be parsed. Manual review required.',
-                'coder_instructions': prompt[:5000],  # Pass partial prompt as fallback
+                'coder_instructions': f"[FALLBACK] Original prompt (redacted for security):\n{safe_prompt}",
                 'plan': ['Manual review required due to parsing error'],
                 'files_to_change': [],
                 'estimated_complexity': 'unknown',
                 'risks': ['AI response parsing failed']
             }
-            logger.warning(f"Using fallback data: {fallback_data}")
+            logger.warning(f"Using fallback data (sensitive info redacted)")
             return fallback_data
-            
+        
+        # Specific exception handling
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON Parse Error (Attempt {attempt + 1}): {e}")
+            if attempt < max_retries:
+                logger.info("Retrying due to JSON parse error...")
+                continue
+            raise
+        except ConnectionError as e:
+            logger.error(f"Network Error (Attempt {attempt + 1}): {e}")
+            if attempt < max_retries:
+                logger.info("Retrying due to network issue...")
+                continue
+            raise
         except Exception as e:
-            logger.error(f"Attempt {attempt + 1} failed: {e}")
+            # Check for Google API specific errors
+            error_str = str(e).lower()
+            if 'quota' in error_str or 'rate' in error_str:
+                logger.error(f"API Quota/Rate Limit Error (Attempt {attempt + 1}): {e}")
+            elif 'timeout' in error_str:
+                logger.error(f"API Timeout Error (Attempt {attempt + 1}): {e}")
+            else:
+                logger.error(f"Unexpected Error (Attempt {attempt + 1}): {e}")
+            
             if attempt < max_retries:
                 logger.info("Retrying...")
                 continue
@@ -143,6 +182,7 @@ def analyze_issue(client: genai.Client, prompt: str, max_retries: int = 2) -> Di
     
     # Should not reach here, but just in case
     raise RuntimeError("All retry attempts exhausted.")
+
 
 
 def write_outputs(data: Dict[str, Any]) -> None:
