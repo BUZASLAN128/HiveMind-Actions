@@ -277,23 +277,50 @@ jobs:
 
               // 🔄 SELF-CORRECTION LOOP: Trigger Coder if Changes Requested
               if (!approved) {
-                  console.log('❌ Review failed. Triggering Coder for self-correction...');
-                  try {
-                      await github.rest.actions.createWorkflowDispatch({
+                  // 🛡️ Retry Limit: Count previous auto-triggers to prevent infinite loop
+                  const MAX_RETRIES = 3;
+                  const comments = await github.rest.issues.listComments({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: issueNumber,
+                      per_page: 100
+                  });
+                  const autoTriggers = comments.data.filter(c => c.body.includes('Reviewer Feedback (Automatic Trigger)')).length;
+                  
+                  if (autoTriggers >= MAX_RETRIES) {
+                      console.log(`⚠️ Max retries (${MAX_RETRIES}) reached. Stopping self-correction loop.`);
+                      await github.rest.issues.createComment({
                           owner: context.repo.owner,
                           repo: context.repo.repo,
-                          workflow_id: 'agent-coder.yml',
-                          ref: context.payload.repository.default_branch, 
-                          inputs: {
-                              issue_number: String(issueNumber),
-                              coder_prompt: `🔍 **Reviewer Feedback (Automatic Trigger)**\n\nThe Reviewer Agent found issues in your changes. Please fix them:\n\n${reviewText}\n\nReview Verdict: ${verdict}`,
-                              comment_id: String(commentId || ''),
-                              base_branch: context.payload.pull_request.head.ref // 🎯 Fix the existing feature branch
-                          }
+                          issue_number: issueNumber,
+                          body: `🛑 **Self-Correction Stopped**: The Reviewer Agent has rejected the changes ${MAX_RETRIES} times. Human intervention is required.`
                       });
-                      console.log('✅ Coder Agent triggered for Self-Correction on branch:', context.payload.pull_request.head.ref);
-                  } catch (dispatchError) {
-                      console.error('❌ Failed to trigger Coder for Self-Correction:', dispatchError);
+                  } else {
+                      console.log(`🔄 Triggering Coder for self-correction (Attempt ${autoTriggers + 1}/${MAX_RETRIES})...`);
+                      
+                      // 🛡️ Prompt Truncation: Prevent exceeding input limits
+                      const MAX_PROMPT_LEN = 6000;
+                      const truncatedReview = reviewText.length > MAX_PROMPT_LEN 
+                          ? reviewText.substring(0, MAX_PROMPT_LEN) + "\n...[TRUNCATED]" 
+                          : reviewText;
+
+                      try {
+                          await github.rest.actions.createWorkflowDispatch({
+                              owner: context.repo.owner,
+                              repo: context.repo.repo,
+                              workflow_id: 'agent-coder.yml',
+                              ref: context.payload.repository.default_branch, 
+                              inputs: {
+                                  issue_number: String(issueNumber),
+                                  coder_prompt: `🔍 **Reviewer Feedback (Automatic Trigger)**\n\nThe Reviewer Agent found issues in your changes. Please fix them:\n\n${truncatedReview}\n\nReview Verdict: ${verdict}`,
+                                  comment_id: String(commentId || ''),
+                                  base_branch: context.payload.pull_request.head.ref // 🎯 Fix the existing feature branch
+                              }
+                          });
+                          console.log('✅ Coder Agent triggered for Self-Correction on branch:', context.payload.pull_request.head.ref);
+                      } catch (dispatchError) {
+                          console.error('❌ Failed to trigger Coder for Self-Correction:', dispatchError);
+                      }
                   }
               }
             }
