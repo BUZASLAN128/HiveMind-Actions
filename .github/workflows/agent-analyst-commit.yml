@@ -5,9 +5,7 @@
 
 name: '🔍 Agent: Analyst (Commit)'
 
-on:
-  commit_comment:
-    types: [created]
+on: [commit_comment]
 
 concurrency:
   group: analyst-commit-${{ github.event.comment.commit_id }}
