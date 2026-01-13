@@ -12,7 +12,8 @@ on:
   # 🦁 Beast Mode: Push Trigger
   push:
     branches:
-      - 'dev'
+      - 'main'
+      - 'master'
 
 concurrency:
   group: reviewer-${{ github.event.pull_request.number || github.sha }}

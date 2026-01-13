@@ -22,6 +22,11 @@ on:
         description: 'Status comment ID'
         required: false
         type: string
+      base_branch:
+        description: 'Base branch to start from'
+        required: false
+        default: 'main'
+        type: string
   # Backup: Manual @coder comment
   issue_comment:
     types: [created]
@@ -217,7 +222,7 @@ jobs:
         uses: google-labs-code/jules-action@v1.0.0
         with:
           jules_api_key: ${{ secrets.JULES_API_KEY }}
-          starting_branch: 'dev'
+          starting_branch: ${{ github.event.inputs.base_branch || 'main' }}
           prompt: |
             You are the Swarm Coder Agent.
             

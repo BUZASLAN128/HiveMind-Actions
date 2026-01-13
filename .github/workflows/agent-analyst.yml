@@ -161,11 +161,12 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 workflow_id: 'agent-coder.yml',
-                ref: 'dev',
+                ref: context.payload.repository.default_branch,
                 inputs: {
                   issue_number: String(issueNumber),
                   coder_prompt: coderPrompt.substring(0, 65000),
-                  comment_id: String(commentId)
+                  comment_id: String(commentId),
+                  base_branch: context.payload.repository.default_branch
                 }
               });
               console.log('✅ Coder workflow triggered successfully!');
