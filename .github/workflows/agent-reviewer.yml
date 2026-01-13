@@ -92,8 +92,6 @@ jobs:
             
             if (issueNumber) {
               const marker = '<!-- SWARM_STATUS_REPORT -->';
-              const idMatch = prBody.match(/<!-- SWARM_COMMENT_ID: (\d+) -->/);
-              const commentId = idMatch ? idMatch[1] : null;
 
               const table = [
                 '| Agent | Status | Task |',
@@ -114,21 +112,7 @@ jobs:
               const header = `## 🐝 HiveMind Status Report ${marker}`;
               const body = `${header}\n\n${table}\n\n${taskList}\n\n> 🔎 Reviewer: PR #${context.payload.pull_request.number} is being analyzed...\n> 🔗 [View PR](${context.payload.pull_request.html_url})`;
 
-              if (commentId) {
-                try {
-                  await github.rest.issues.updateComment({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    comment_id: parseInt(commentId),
-                    body: body
-                  });
-                  return; // Succeeded
-                } catch (e) {
-                  console.log(`⚠️ Comment ${commentId} not found or inaccessible, falling back to search.`);
-                }
-              }
-              
-              // Fallback to search
+              // Search for existing status comment by marker
               const comments = await github.rest.issues.listComments({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -138,6 +122,7 @@ jobs:
                 direction: 'desc'
               });
               const statusComment = comments.data.find(c => c.body.includes(marker));
+              
               if (statusComment) {
                 try {
                   await github.rest.issues.updateComment({
@@ -147,8 +132,8 @@ jobs:
                     body: body
                   });
                 } catch (e) {
-                   console.log(`⚠️ Comment ${statusComment.id} update failed (404?), creating new one.`);
-                   await github.rest.issues.createComment({
+                  console.log(`⚠️ Comment update failed, creating new one.`);
+                  await github.rest.issues.createComment({
                     owner: context.repo.owner,
                     repo: context.repo.repo,
                     issue_number: issueNumber,
@@ -248,8 +233,6 @@ jobs:
             
             if (issueNumber) {
               const marker = '<!-- SWARM_STATUS_REPORT -->';
-              const idMatch = prBody.match(/<!-- SWARM_COMMENT_ID: (\d+) -->/);
-              const commentId = idMatch ? idMatch[1] : null;
 
               const table = [
                 '| Agent | Status | Task |',
@@ -270,80 +253,27 @@ jobs:
               const header = `## 🐝 HiveMind Status Report ${marker}`;
               const body = `${header}\n\n${table}\n\n${taskList}\n\n---\n\n**Verdict:** ${verdict}\n\n🔗 [PR #${context.payload.pull_request.number}](${context.payload.pull_request.html_url})\n\n${approved ? '> ✅ **Ready to Merge!** Review passed.' : '> ⚠️ **Changes Needed.** Please address the issues.'}`;
 
-              if (commentId) {
+              // Search for existing status comment by marker
+              const comments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                per_page: 50,
+                sort: 'created',
+                direction: 'desc'
+              });
+              const statusComment = comments.data.find(c => c.body.includes(marker));
+              
+              if (statusComment) {
                 try {
                   await github.rest.issues.updateComment({
                     owner: context.repo.owner,
                     repo: context.repo.repo,
-                    comment_id: parseInt(commentId),
+                    comment_id: statusComment.id,
                     body: body
                   });
                 } catch (e) {
-                  console.log(`⚠️ Comment ${commentId} not found or inaccessible in Post Review, falling back to search.`);
-                  // Fallback to search
-                  const comments = await github.rest.issues.listComments({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    issue_number: issueNumber,
-                    per_page: 50,
-                    sort: 'created',
-                    direction: 'desc'
-                  });
-                  const statusComment = comments.data.find(c => c.body.includes(marker));
-                  if (statusComment) {
-                    try {
-                      await github.rest.issues.updateComment({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        comment_id: statusComment.id,
-                        body: body
-                      });
-                    } catch (updateError) {
-                      console.log(`⚠️ Failed to update found comment ${statusComment.id}, creating new one. Error: ${updateError.message}`);
-                      await github.rest.issues.createComment({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        issue_number: issueNumber,
-                        body: body
-                      });
-                    }
-                  } else {
-                    await github.rest.issues.createComment({
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      issue_number: issueNumber,
-                      body: body
-                    });
-                  }
-                }
-              } else {
-                const comments = await github.rest.issues.listComments({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: issueNumber,
-                  per_page: 50,
-                  sort: 'created',
-                  direction: 'desc'
-                });
-                const statusComment = comments.data.find(c => c.body.includes(marker));
-                if (statusComment) {
-                  try {
-                    await github.rest.issues.updateComment({
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      comment_id: statusComment.id,
-                      body: body
-                    });
-                  } catch (e) {
-                     console.log(`⚠️ Comment ${statusComment.id} update failed (404?), creating new one.`);
-                     await github.rest.issues.createComment({
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      issue_number: issueNumber,
-                      body: body
-                    });
-                  }
-                } else {
+                  console.log(`⚠️ Comment update failed, creating new one.`);
                   await github.rest.issues.createComment({
                     owner: context.repo.owner,
                     repo: context.repo.repo,
@@ -351,6 +281,13 @@ jobs:
                     body: body
                   });
                 }
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: body
+                });
               }
 
               // 🔄 SELF-CORRECTION LOOP: Trigger Jules (Google Labs) via REST API
