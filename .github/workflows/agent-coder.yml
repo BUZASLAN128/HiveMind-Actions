@@ -79,15 +79,16 @@ jobs:
               issueNumber = context.payload.issue.number;
               const comment = context.payload.comment.body || '';
               const author = context.payload.comment.user.login;
-              const allowlist = ['buzaslan129', 'BUZASLAN128', 'github-actions[bot]'];
+              const association = context.payload.comment.author_association;
+              const isTrusted = ['OWNER', 'COLLABORATOR', 'MEMBER'].includes(association) || author.includes('github-actions') || author.includes('google-labs');
               
-              if (allowlist.includes(author) && comment.includes('@coder')) {
+              if (isTrusted && comment.includes('@coder')) {
                 shouldRun = true;
                 const match = comment.match(/<!-- CODER_PROMPT_START([\s\S]*?)CODER_PROMPT_END -->/);
                 if (match && match[1]) {
                   prompt = match[1].trim();
                 } else {
-                  prompt = comment.replace('@coder', '').replace('@jules', '').trim();
+                  prompt = comment.replace('@coder', '').trim();
                 }
               }
             }
