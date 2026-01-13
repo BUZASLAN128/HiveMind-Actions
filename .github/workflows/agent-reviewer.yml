@@ -281,12 +281,22 @@ jobs:
                   });
                   const statusComment = comments.data.find(c => c.body.includes(marker));
                   if (statusComment) {
-                    await github.rest.issues.updateComment({
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      comment_id: statusComment.id,
-                      body: body
-                    });
+                    try {
+                      await github.rest.issues.updateComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        comment_id: statusComment.id,
+                        body: body
+                      });
+                    } catch (updateError) {
+                      console.log(`⚠️ Failed to update found comment ${statusComment.id}, creating new one. Error: ${updateError.message}`);
+                      await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: issueNumber,
+                        body: body
+                      });
+                    }
                   } else {
                     await github.rest.issues.createComment({
                       owner: context.repo.owner,
