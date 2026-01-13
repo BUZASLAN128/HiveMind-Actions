@@ -407,7 +407,7 @@ jobs:
                   // Prepare Payload
                   const apiKey = process.env.JULES_API_KEY;
                   if (!apiKey) {
-                      console.log('❌ JULES_API_KEY not found in environment. Skipping auto-fix.');
+                      console.log('❌ Error: JULES_API_KEY environment variable is not set. Cannot trigger self-correction.');
                       return;
                   }
                   
