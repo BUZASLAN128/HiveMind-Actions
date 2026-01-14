@@ -249,9 +249,18 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.set-token.outputs.token }}
           LABELS: ${{ steps.review.outputs.labels }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           echo "🏷️ Applying labels: $LABELS"
-          gh pr edit ${{ github.event.pull_request.number }} --add-label "$LABELS"
+          # Loop through comma-separated labels and apply each one individually
+          # This prevents the workflow from failing if a label doesn't exist
+          IFS=',' read -ra LABEL_ARRAY <<< "$LABELS"
+          for label in "${LABEL_ARRAY[@]}"; do
+            label=$(echo "$label" | xargs) # Trim whitespace
+            echo "  → Trying to add label: '$label'"
+            gh pr edit "$PR_NUMBER" --add-label "$label" 2>/dev/null || echo "    ⚠️ Label '$label' not found, skipping."
+          done
+          echo "✅ Label application complete."
 
       - name: Post Review (PR Mode)
         if: always() && github.event_name == 'pull_request'
