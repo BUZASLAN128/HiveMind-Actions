@@ -69,9 +69,18 @@ jobs:
           
           ls -lh coder_changes.diff
 
+      - name: Check Secrets
+        id: check-secrets
+        run: |
+          if [ -n "${{ secrets.APP_ID }}" ]; then
+            echo "has_app_id=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_app_id=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Generate App Token (Optional - for custom branding)
         id: app-token
-        if: ${{ secrets.APP_ID != '' }}
+        if: steps.check-secrets.outputs.has_app_id == 'true'
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.APP_ID }}
