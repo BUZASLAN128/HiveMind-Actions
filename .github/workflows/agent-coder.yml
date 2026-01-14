@@ -45,6 +45,11 @@ defaults:
 jobs:
   # Check trigger and extract prompt
   check-trigger:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' && 
+       (contains(github.event.comment.body, '@coder') || contains(github.event.comment.body, 'enes-aii'))) ||
+      (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'ai-ready')
     runs-on: ubuntu-latest
     # 🔐 Least privilege permissions
     permissions:
