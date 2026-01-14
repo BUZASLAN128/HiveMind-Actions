@@ -224,21 +224,7 @@ jobs:
 
                   ${approved ? '> This PR is ready to merge.' : '> Please fix the issues mentioned above.'}`
                 });
-                
-                // 🤖 If rejected, post separate comment to trigger Jules with Session ID
-                if (!approved) {
-                    // Extract session ID from PR body for continuity
-                    const prTaskMatch = (context.payload.pull_request.body || '').match(/for task \[?(\d+)\]?/);
-                    const taskSessionId = prTaskMatch ? prTaskMatch[1] : '';
-                    const sessionInfo = taskSessionId ? `\n\n<!-- JULES_SESSION_ID: ${taskSessionId} -->` : '';
-                    
-                    await github.rest.issues.createComment({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        issue_number: context.payload.pull_request.number,
-                        body: `@google-labs-jules Please fix the issues mentioned in the review above. 🔧${sessionInfo}`
-                    });
-                }
+                // Note: Jules is triggered via REST API in the self-correction loop below
             }
             
             // Update associated issue
