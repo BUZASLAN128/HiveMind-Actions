@@ -39,7 +39,6 @@ HiveMind acts as an **always-on security guard**.
 - No security hole goes unnoticed.
 
 ### 4. ⚡ Competitive Intelligence (Smart Actions)
-We built features that rival paid tools like CodeRabbit or CodiumAI:
 - **Smart Ignore:** Automatically skips junk files (`package-lock.json`, `dist/`, `*.min.js`) to save tokens and reduce noise.
 - **Auto-Labeler:** AI analyzes your PR and tags it automatically (`bug`, `feature`, `security`, `refactor`).
 - **Token Optimization:** Uses efficient diff parsing to handle large PRs without breaking the bank.
