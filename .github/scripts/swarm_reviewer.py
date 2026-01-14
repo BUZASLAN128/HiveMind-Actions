@@ -14,6 +14,22 @@ from typing import Dict, Any, List, Tuple
 from google import genai
 from ai_utils import setup_generative_ai, load_prompt_template, logger
 
+def _redact_sensitive_data(text: str) -> str:
+    """Redacts potentially sensitive data from text (API keys, passwords, etc.)."""
+    import re
+    # Patterns for common sensitive data formats
+    patterns = [
+        (r'sk-[a-zA-Z0-9]{20,}', '[REDACTED_OPENAI_KEY]'),
+        (r'AIza[a-zA-Z0-9_-]{35}', '[REDACTED_GOOGLE_KEY]'),
+        (r'ghp_[a-zA-Z0-9]{36}', '[REDACTED_GITHUB_TOKEN]'),
+        (r'xox[bap]-[a-zA-Z0-9-]{10,}', '[REDACTED_SLACK_TOKEN]'),
+        (r'(?i)(password|secret|key|token|auth)\s*[=:]\s*["\']?[a-zA-Z0-9_.@/-]{3,}["\']?', r'\1=[REDACTED]'),
+        (r'[a-zA-Z0-9._%+-]+:[a-zA-Z0-9._%+-]+@', '[REDACTED_USER_PASS]@'), # DB credentials in URLs
+    ]
+    for pattern, replacement in patterns:
+        text = re.sub(pattern, replacement, text)
+    return text
+
 
 def get_diff_content(filepath: str = 'coder_changes.diff') -> str:
     """
@@ -130,6 +146,7 @@ def write_outputs(approved: bool, comment: str, labels: List[str] = None) -> Non
                 # Join labels with comma for use in workflow
                 f.write(f"labels={','.join(labels)}\n")
 
+    comment = _redact_sensitive_data(comment)
     Path("review_comment.md").write_text(comment, encoding="utf-8")
 
 def main() -> None:
