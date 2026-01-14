@@ -135,7 +135,13 @@ jobs:
   code:
     name: '💻 Implementation'
     needs: check-trigger
-    if: needs.check-trigger.outputs.should_run == 'true'
+    if: |
+      needs.check-trigger.outputs.should_run == 'true' && (
+        github.actor == github.repository_owner || 
+        github.actor == 'buzaslan129' || 
+        github.actor == 'dependabot[bot]' || 
+        github.actor == 'github-actions[bot]'
+      )
     runs-on: ubuntu-latest
     
     permissions:
