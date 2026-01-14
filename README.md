@@ -33,7 +33,7 @@ HiveMind doesn't just "guess". It follows your **Golden Rules** defined in `.git
 
 ### 3. 🛡️ Beast Mode (Proactive Security)
 HiveMind acts as an **always-on security guard**.
-- Pushed code to `dev`? The Reviewer inspects it instantly.
+- Pushed code to `any`? The Reviewer inspects it instantly.
 - Found a critical vulnerability? It autonomously **opens an Issue** and assigns it to the team.
 - No security hole goes unnoticed.
 
