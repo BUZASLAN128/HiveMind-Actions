@@ -52,39 +52,45 @@ Immediate security and quality feedback on every push.
 - **Commit Comments:** The Reviewer agent reviews your push and comments directly on the commit.
 - **🚨 Critical Issue Auto-Creation:** If the Reviewer detects a high-risk security flaw or a breaking logic error, it **automatically creates a GitHub Issue** to alert the team immediately.
 
-### 3. Autonomous Self-Correction (Jules Integration)
-If the Reviewer rejects a Coder's PR, HiveMind enters a **self-correction loop** (up to 5 retries):
-
-1. **Reviewer** detects issues → Posts review with `REQUEST_CHANGES`
-2. **REST API** sends feedback to **Jules** (Google's AI coding agent)
-3. **Jules** fixes the code and pushes a new commit
-4. **Reviewer** re-evaluates → Loop continues until approved or max retries reached
-
-**Session Continuity:** HiveMind automatically detects existing Jules sessions from PR descriptions and continues them instead of creating new ones.
-
-> ⚠️ Requires `JULES_API_KEY` secret to be configured.
+### 3. Autonomous Self-Correction
+If the Reviewer rejects a Coder's PR, HiveMind enters a self-correction loop (up to 5 retries). The Reviewer mentions the Coder agent, passing the feedback, and the Coder attempts to fix the issue automatically.
 
 ## 🤝 Open Source & Project Agnostic
 HiveMind is designed to work with any repository. By updating `.github/swarm_rules.md`, you can tailor the AI's "brain" to follow your specific architectural patterns and security standards.
 
-## 🤖 Bot Configuration
+## 🎨 Bot Customization & Branding (Optional)
 
-### Default: Using Your Own GitHub App
-Create your own GitHub App following the Installation instructions above. This gives you full control over permissions and bot identity.
+Customize the bot identity and behavior for your organization:
 
-### Alternative: Community Fallback Bot
-If you don't want to create your own GitHub App, you can use the community bot:
-- **Bot Name:** `hivemind-reviewer-bot-128`
-- **Limitation:** Limited to this repository's workflow triggers
-- **Recommendation:** For production use, create your own GitHub App
+### Environment Variables
 
-### Required Secrets
-| Secret | Required | Description |
-|--------|----------|-------------|
-| `GEMINI_API_KEY` | ✅ Yes | Google Gemini API key for AI reviews |
-| `JULES_API_KEY` | ✅ Yes | Jules REST API key for self-correction loop |
-| `APP_ID` | ✅ Yes | Your GitHub App ID |
-| `APP_PRIVATE_KEY` | ✅ Yes | GitHub App private key (.pem contents) |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GEMINI_API_KEY` | ✅ | Google Gemini API key for AI reviews |
+| `JULES_API_KEY` | ⚠️ Optional | Jules REST API key for self-correction loop |
+| `CODER_BOT` | ⚠️ Optional | Bot to mention on PR rejection (e.g., `@google-labs-jules`) |
+| `APP_ID` | ✅ | GitHub App ID |
+| `APP_PRIVATE_KEY` | ✅ | GitHub App private key |
+
+### Custom Bot Branding
+
+To use your own bot identity instead of `@google-labs-jules`:
+
+```yaml
+# In your workflow
+env:
+  CODER_BOT: '@your-custom-bot'
+```
+
+Set to empty or don't define to disable bot mentions entirely (REST API still works).
+
+### GitHub App Setup
+
+1. Create a [GitHub App](https://github.com/settings/apps/new)
+2. **Permissions:** Contents (R/W), Issues (R/W), Pull Requests (R/W)
+3. Generate private key and note App ID
+4. Install to your repository
+5. Add `APP_ID` and `APP_PRIVATE_KEY` secrets
 
 ## 📜 License
 MIT
