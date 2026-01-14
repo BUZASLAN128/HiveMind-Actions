@@ -307,20 +307,32 @@ jobs:
                   
                   const autoTriggers = comments.data.filter(c => c.body.includes('Reviewer Feedback (Automatic Trigger)')).length;
                   
-                  // Find Session ID Pattern: <!-- JULES_SESSION_ID: 12345 -->
+                  // Find Session ID - check both formats:
+                  // 1. My format: <!-- JULES_SESSION_ID: 123 -->
+                  // 2. Jules' format: "for task 123" (in link)
                   let limitReached = autoTriggers >= MAX_RETRIES;
                   let sessionId = null;
 
-                  // Look for the most recent session ID
-                  const sessionMatch = comments.data
-                      .map(c => c.body.match(/<!-- JULES_SESSION_ID: (.+?) -->/))
-                      .filter(m => m)[0];
+                  // Look for session ID in any comment
+                  for (const c of comments.data) {
+                      // Pattern 1: My hidden comment
+                      const myMatch = c.body.match(/<!-- JULES_SESSION_ID: (.+?) -->/);
+                      if (myMatch) {
+                          sessionId = myMatch[1];
+                          console.log('🔗 Found Session ID (my format): ' + sessionId);
+                          break;
+                      }
+                      // Pattern 2: Jules' native format
+                      const julesMatch = c.body.match(/for task (\d+)/);
+                      if (julesMatch) {
+                          sessionId = julesMatch[1];
+                          console.log('🔗 Found Session ID (Jules format): ' + sessionId);
+                          break;
+                      }
+                  }
                   
-                  if (sessionMatch) {
-                      sessionId = sessionMatch[1];
-                      console.log('🔗 Found existing Jules Session ID: ' + sessionId);
-                  } else {
-                      console.log('ℹ️ No existing Jules Session ID found in comments. Will create a new one.');
+                  if (!sessionId) {
+                      console.log('ℹ️ No existing Jules Session ID found. Will create new session.');
                   }
 
                   if (limitReached) {
