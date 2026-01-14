@@ -215,7 +215,7 @@ jobs:
                 // 🤖 If rejected, post separate comment to trigger Jules with Session ID
                 if (!approved) {
                     // Extract session ID from PR body for continuity
-                    const prTaskMatch = (context.payload.pull_request.body || '').match(/for task (\d+)/);
+                    const prTaskMatch = (context.payload.pull_request.body || '').match(/for task \[?(\d+)\]?/);
                     const taskSessionId = prTaskMatch ? prTaskMatch[1] : '';
                     const sessionInfo = taskSessionId ? `\n\n<!-- JULES_SESSION_ID: ${taskSessionId} -->` : '';
                     
@@ -322,7 +322,8 @@ jobs:
                   // FIRST: Check PR BODY for Jules task ID
                   const prBody = context.payload.pull_request.body || '';
                   console.log('📋 PR Body length: ' + prBody.length);
-                  const prBodyMatch = prBody.match(/for task (\d+)/);
+                  // Handle both plain text and markdown link: "for task 123" or "for task [123](url)"
+                  const prBodyMatch = prBody.match(/for task \[?(\d+)\]?/);
                   if (prBodyMatch) {
                       sessionId = prBodyMatch[1];
                       console.log('🔗 Found Session ID in PR BODY: ' + sessionId);
@@ -339,7 +340,7 @@ jobs:
                               break;
                           }
                           // Pattern 2: Jules' native format in comment
-                          const julesMatch = c.body.match(/for task (\d+)/);
+                          const julesMatch = c.body.match(/for task \[?(\d+)\]?/);
                           if (julesMatch) {
                               sessionId = julesMatch[1];
                               console.log('🔗 Found Session ID (Jules format in comment): ' + sessionId);
