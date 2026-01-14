@@ -11,11 +11,7 @@ on:
     types: [opened, synchronize, ready_for_review]
   # 🦁 Beast Mode: Push Trigger
   push:
-    branches:
-      - 'main'
-      - 'master'
-      - 'dev'
-      - 'develop'
+    branches: ['**']
 
 concurrency:
   group: reviewer-${{ github.event.pull_request.number || github.sha }}
