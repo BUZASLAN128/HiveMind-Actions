@@ -78,16 +78,17 @@ def load_and_format_prompt(prompt_path: Path, issue_data: Dict[str, Any], contex
 def _redact_sensitive_data(text: str) -> str:
     """Redacts potentially sensitive data from text (API keys, passwords, etc.)."""
     import re
-    # Redact patterns that look like API keys or secrets
+    # Patterns for common sensitive data formats
     patterns = [
-        (r'(sk-[a-zA-Z0-9]{20,})', '[REDACTED_API_KEY]'),  # OpenAI-style
-        (r'(AIza[a-zA-Z0-9_-]{35})', '[REDACTED_GCLOUD_KEY]'),  # Google API Key
-        (r'(ghp_[a-zA-Z0-9]{36})', '[REDACTED_GITHUB_TOKEN]'),  # GitHub PAT
-        (r'(password\s*[=:]\s*["\']?[^"\']+["\']?)', '[REDACTED_PASSWORD]'),  # Passwords
-        (r'(secret\s*[=:]\s*["\']?[^"\']+["\']?)', '[REDACTED_SECRET]'),  # Secrets
+        (r'sk-[a-zA-Z0-9]{20,}', '[REDACTED_OPENAI_KEY]'),
+        (r'AIza[a-zA-Z0-9_-]{35}', '[REDACTED_GOOGLE_KEY]'),
+        (r'ghp_[a-zA-Z0-9]{36}', '[REDACTED_GITHUB_TOKEN]'),
+        (r'xox[bap]-[a-zA-Z0-9-]{10,}', '[REDACTED_SLACK_TOKEN]'),
+        (r'(?i)(password|secret|key|token|auth)\s*[=:]\s*["\']?[a-zA-Z0-9_.@/-]{3,}["\']?', r'\1=[REDACTED]'),
+        (r'[a-zA-Z0-9._%+-]+:[a-zA-Z0-9._%+-]+@', '[REDACTED_USER_PASS]@'), # DB credentials in URLs
     ]
     for pattern, replacement in patterns:
-        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+        text = re.sub(pattern, replacement, text)
     return text
 
 def analyze_issue(client: genai.Client, prompt: str, max_retries: int = 2) -> Dict[str, Any]:
