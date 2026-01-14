@@ -27,10 +27,7 @@ jobs:
   review:
     name: '📝 Code Review'
     runs-on: ubuntu-latest
-    # Inspect PRs opened by the Coder or AI branches
-    # Or PRs opened by the bot (github-actions[bot])
-    # OR if it's a Push event (Beast Mode)
-    if: github.event_name == 'push' || contains(github.event.pull_request.head.ref, 'coder') || contains(github.event.pull_request.head.ref, 'ai-') || contains(github.event.pull_request.head.ref, 'feat/') || contains(github.event.pull_request.head.ref, 'add-') || github.event.pull_request.user.login == 'github-actions[bot]' || github.event.pull_request.user.login == 'google-labs-code' || github.event.pull_request.user.login == 'google-labs-jules'
+    # Removed restrictive filter - now runs on ALL PRs
     
     permissions:
       contents: write # Required for commit comments
