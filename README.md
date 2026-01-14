@@ -3,7 +3,8 @@
 > **The First "Serverless" Swarm AI for GitHub Actions.**  
 > Turn your repository into a self-healing, multi-agent AI workspace with zero infrastructure cost.
 
-![Swarm Status Report](https://via.placeholder.com/800x400?text=HiveMind+Swarm+Intelligence)
+[![Live Issue #1](https://img.shields.io/badge/HiveMind-Live_Issue_%231-blue?style=for-the-badge&logo=github)](https://github.com/BUZASLAN128/HiveMind-Actions/issues/1) 
+[![Live PR #25](https://img.shields.io/badge/HiveMind-Live_PR_%2325-success?style=for-the-badge&logo=github)](https://github.com/BUZASLAN128/HiveMind-Actions/pull/25)
 
 ---
 
