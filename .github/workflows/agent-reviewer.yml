@@ -434,10 +434,19 @@ jobs:
                           '<!-- JULES_SESSION_ID: ' + sessionId + ' -->\n' +
                           '<!-- Reviewer Feedback (Automatic Trigger) -->';
 
+                      // Post to Issue
                       await github.rest.issues.createComment({
                           owner: context.repo.owner,
                           repo: context.repo.repo,
                           issue_number: issueNumber,
+                          body: confirmBody
+                      });
+                      
+                      // Also post to PR for session continuity
+                      await github.rest.issues.createComment({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: prNumber,
                           body: confirmBody
                       });
                       
