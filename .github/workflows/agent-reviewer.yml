@@ -307,27 +307,38 @@ jobs:
                   
                   const autoTriggers = comments.data.filter(c => c.body.includes('Reviewer Feedback (Automatic Trigger)')).length;
                   
-                  // Find Session ID - check both formats:
-                  // 1. My format: <!-- JULES_SESSION_ID: 123 -->
-                  // 2. Jules' format: "for task 123" (in link)
+                  // Find Session ID - check multiple sources:
+                  // 1. PR body (Jules writes "for task X" there)
+                  // 2. Comments: My format <!-- JULES_SESSION_ID: 123 -->
+                  // 3. Comments: Jules' format "for task 123"
                   let limitReached = autoTriggers >= MAX_RETRIES;
                   let sessionId = null;
 
-                  // Look for session ID in any comment
-                  for (const c of comments.data) {
-                      // Pattern 1: My hidden comment
-                      const myMatch = c.body.match(/<!-- JULES_SESSION_ID: (.+?) -->/);
-                      if (myMatch) {
-                          sessionId = myMatch[1];
-                          console.log('🔗 Found Session ID (my format): ' + sessionId);
-                          break;
-                      }
-                      // Pattern 2: Jules' native format
-                      const julesMatch = c.body.match(/for task (\d+)/);
-                      if (julesMatch) {
-                          sessionId = julesMatch[1];
-                          console.log('🔗 Found Session ID (Jules format): ' + sessionId);
-                          break;
+                  // First, check PR body for Jules task ID
+                  const prBody = context.payload.pull_request.body || '';
+                  const prBodyMatch = prBody.match(/for task (\d+)/);
+                  if (prBodyMatch) {
+                      sessionId = prBodyMatch[1];
+                      console.log('🔗 Found Session ID in PR body: ' + sessionId);
+                  }
+
+                  // If not found in body, check comments
+                  if (!sessionId) {
+                      for (const c of comments.data) {
+                          // Pattern 1: My hidden comment
+                          const myMatch = c.body.match(/<!-- JULES_SESSION_ID: (.+?) -->/);
+                          if (myMatch) {
+                              sessionId = myMatch[1];
+                              console.log('🔗 Found Session ID (my format): ' + sessionId);
+                              break;
+                          }
+                          // Pattern 2: Jules' native format in comment
+                          const julesMatch = c.body.match(/for task (\d+)/);
+                          if (julesMatch) {
+                              sessionId = julesMatch[1];
+                              console.log('🔗 Found Session ID (Jules format): ' + sessionId);
+                              break;
+                          }
                       }
                   }
                   
