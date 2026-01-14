@@ -1,9 +1,10 @@
 import unittest
 
 class TestCalculation(unittest.TestCase):
-    def test_six_plus_three(self):
-        # This is a hardcoded API key for testing purposes ONLY.
-        api_key = '321893289214213asd231789'
+    """A collection of tests for basic calculations."""
+
+    def test_six_plus_three(self) -> None:
+        """Tests that the sum of 6 and 3 is equal to 9."""
         self.assertEqual(6 + 3, 9)
 
 if __name__ == '__main__':
