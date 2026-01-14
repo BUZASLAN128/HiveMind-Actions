@@ -100,18 +100,23 @@ jobs:
         id: diff
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 🛡️ Security: Map inputs to env vars to prevent command injection
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
+          if [ "$EVENT_NAME" == "pull_request" ]; then
             echo "📋 PR Mode detected."
-            git fetch origin ${{ github.event.pull_request.base.ref }}
-            git diff origin/${{ github.event.pull_request.base.ref }}...HEAD -- . ':(exclude)package-lock.json' ':(exclude)yarn.lock' ':(exclude)*.min.js' ':(exclude)*.map' ':(exclude)dist/' ':(exclude)build/' > coder_changes.diff
+            git fetch origin "$BASE_REF"
+            git diff origin/"$BASE_REF"...HEAD -- . ':(exclude)package-lock.json' ':(exclude)yarn.lock' ':(exclude)*.min.js' ':(exclude)*.map' ':(exclude)dist/' ':(exclude)build/' > coder_changes.diff
           else
             echo "🦁 Beast Mode detected (Push)."
             # Get diff for Push: Current vs Previous commit
-            if [ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]; then
+            if [ "$EVENT_BEFORE" == "0000000000000000000000000000000000000000" ]; then
                git diff HEAD^ HEAD > coder_changes.diff || git diff --cached > coder_changes.diff
             else
-               git diff ${{ github.event.before }} ${{ github.event.after }} -- . ':(exclude)package-lock.json' ':(exclude)dist/' > coder_changes.diff || git diff HEAD^ HEAD > coder_changes.diff
+               git diff "$EVENT_BEFORE" "$EVENT_AFTER" -- . ':(exclude)package-lock.json' ':(exclude)dist/' > coder_changes.diff || git diff HEAD^ HEAD > coder_changes.diff
             fi
           fi
           
