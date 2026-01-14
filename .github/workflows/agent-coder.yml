@@ -51,6 +51,7 @@ jobs:
       contents: read
       issues: read
     outputs:
+      is_trusted: ${{ steps.check.outputs.is_trusted }}
       should_run: ${{ steps.check.outputs.should_run }}
       prompt: ${{ steps.check.outputs.prompt }}
       issue_number: ${{ steps.check.outputs.issue_number }}
@@ -127,6 +128,34 @@ jobs:
               prompt = `Issue #${issueNumber}: ${issue.title || 'Task'}\n\n${issue.body || 'No details'}`;
             }
 
+            // 🔐 Trust Calculation (Dinamik API tabanlı yetki kontrolü)
+            const author = context.actor;
+            const botWhitelist = ['google-labs-jules[bot]', 'dependabot[bot]', 'github-actions[bot]'];
+            
+            let isTrusted = false;
+            if (botWhitelist.includes(author)) {
+              isTrusted = true;
+              console.log(`✅ Bot ${author} is in the whitelist.`);
+            } else {
+              try {
+                const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  username: author
+                });
+                const level = permission.permission;
+                console.log(`🔍 Actor ${author} has permission level: ${level}`);
+                if (['admin', 'write'].includes(level)) {
+                  isTrusted = true;
+                  console.log(`✅ Actor ${author} is trusted via API (level: ${level})`);
+                }
+              } catch (e) {
+                console.log(`⚠️ API Check failed or actor is not a collaborator: ${e.message}`);
+                if (author === context.repo.owner) isTrusted = true;
+              }
+            }
+
+            core.setOutput('is_trusted', String(isTrusted));
             core.setOutput('should_run', shouldRun ? 'true' : 'false');
             core.setOutput('prompt', prompt);
             core.setOutput('issue_number', String(issueNumber));
@@ -136,12 +165,8 @@ jobs:
     name: '💻 Implementation'
     needs: check-trigger
     if: |
-      needs.check-trigger.outputs.should_run == 'true' && (
-        github.actor == github.repository_owner || 
-        github.actor == 'buzaslan129' || 
-        github.actor == 'dependabot[bot]' || 
-        github.actor == 'github-actions[bot]'
-      )
+      needs.check-trigger.outputs.should_run == 'true' && 
+      needs.check-trigger.outputs.is_trusted == 'true'
     runs-on: ubuntu-latest
     
     permissions:

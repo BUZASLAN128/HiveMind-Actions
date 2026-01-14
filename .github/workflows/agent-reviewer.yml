@@ -22,15 +22,60 @@ defaults:
     shell: 'bash'
 
 jobs:
+  check-access:
+    name: '🛡️ Check Access'
+    runs-on: ubuntu-latest
+    outputs:
+      is_trusted: ${{ steps.check.outputs.is_trusted }}
+    steps:
+      - name: Verify Actor
+        id: check
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const author = context.actor;
+            const botWhitelist = ['google-labs-jules[bot]', 'dependabot[bot]', 'github-actions[bot]'];
+            
+            let isTrusted = false;
+            
+            // 1. Check Bot Whitelist
+            if (botWhitelist.includes(author)) {
+              isTrusted = true;
+              console.log(`✅ Bot ${author} is in the whitelist.`);
+            } else {
+              // 2. Pro-active API Check: Check collaborator permission level
+              try {
+                const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  username: author
+                });
+                
+                const level = permission.permission; // 'admin', 'write', 'read', 'none'
+                console.log(`🔍 Actor ${author} has permission level: ${level}`);
+                
+                if (['admin', 'write'].includes(level)) {
+                  isTrusted = true;
+                  console.log(`✅ Actor ${author} is trusted via API (level: ${level})`);
+                }
+              } catch (e) {
+                console.log(`⚠️ API Check failed or actor is not a collaborator: ${e.message}`);
+                // Fallback: Check Repo Owner Handle
+                if (author === context.repo.owner) {
+                  isTrusted = true;
+                  console.log(`✅ Actor ${author} matches repo owner handle.`);
+                }
+              }
+            }
+            
+            console.log(`Final Decision: is_trusted=${isTrusted}`);
+            core.setOutput('is_trusted', String(isTrusted));
+
   review:
     name: '📝 Code Review'
+    needs: check-access
+    if: needs.check-access.outputs.is_trusted == 'true'
     runs-on: ubuntu-latest
-    # 🔐 Security: Only repo owner, buzaslan129, or bots can trigger this workflow
-    if: |
-      github.actor == github.repository_owner || 
-      github.actor == 'buzaslan129' || 
-      github.actor == 'dependabot[bot]' || 
-      github.actor == 'github-actions[bot]'
     
     permissions:
       contents: write # Required for commit comments
@@ -476,7 +521,8 @@ jobs:
               }
             }
       - name: Post Review (Beast Mode - Push)
-        if: github.event_name == 'push'
+        # 🛡️ Skip if actor is Jules (handled in PR mode) or if no issues found
+        if: always() && github.event_name == 'push' && github.actor != 'google-labs-jules[bot]'
         uses: actions/github-script@v8
         with:
           github-token: ${{ steps.app-token.outputs.token }}
