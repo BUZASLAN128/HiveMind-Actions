@@ -294,6 +294,11 @@ jobs:
               if (!approved) {
                   const MAX_RETRIES = 5;
                   
+                  if (!reviewText || reviewText.trim().length < 10) {
+                      console.log('⚠️ Review text is too short or empty. Skipping self-correction.');
+                      return;
+                  }
+
                   // 1. Find existing session ID from comments
                   const comments = await github.rest.issues.listComments({
                       owner: context.repo.owner,
@@ -307,6 +312,8 @@ jobs:
                   // Find Session ID Pattern: <!-- JULES_SESSION_ID: 12345 -->
                   let limitReached = autoTriggers >= MAX_RETRIES;
                   let sessionId = null;
+
+                  // Look for the most recent session ID
                   const sessionMatch = comments.data
                       .map(c => c.body.match(/<!-- JULES_SESSION_ID: (.+?) -->/))
                       .filter(m => m)[0];
@@ -314,6 +321,8 @@ jobs:
                   if (sessionMatch) {
                       sessionId = sessionMatch[1];
                       console.log('🔗 Found existing Jules Session ID: ' + sessionId);
+                  } else {
+                      console.log('ℹ️ No existing Jules Session ID found in comments. Will create a new one.');
                   }
 
                   if (limitReached) {
@@ -345,6 +354,12 @@ jobs:
                   const apiKey = process.env.JULES_API_KEY;
                   if (!apiKey) {
                       console.log('❌ Error: JULES_API_KEY environment variable is not set. Cannot trigger self-correction.');
+                      await github.rest.issues.createComment({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: issueNumber,
+                          body: '⚠️ **Self-Correction Failed**: `JULES_API_KEY` is missing.'
+                      });
                       return;
                   }
                   
@@ -362,7 +377,12 @@ jobs:
                               },
                               body: JSON.stringify({ prompt: 'Reviewer Feedback:\n\n' + reviewText + '\n\nPlease fix these issues.' })
                           });
-                          if (!response.ok) throw new Error('Jules API Error: ' + response.status);
+
+                          if (!response.ok) {
+                              const errorText = await response.text();
+                              throw new Error('Jules API Error (' + response.status + '): ' + errorText);
+                          }
+
                           julesResp = await response.json();
                           console.log('✅ Feedback sent to Jules session.');
                       } else {
@@ -385,7 +405,12 @@ jobs:
                                   automationMode: 'AUTO_CREATE_PR'
                               })
                           });
-                          if (!response.ok) throw new Error('Jules API Error: ' + response.status);
+
+                          if (!response.ok) {
+                              const errorText = await response.text();
+                              throw new Error('Jules API Error (' + response.status + '): ' + errorText);
+                          }
+
                           julesResp = await response.json();
                           sessionId = julesResp.id || julesResp.name.split('/').pop();
                           console.log('✅ New Session Created: ' + sessionId);
@@ -408,6 +433,12 @@ jobs:
                       
                   } catch (apiError) {
                       console.error('❌ Jules REST API Failed:', apiError);
+                      await github.rest.issues.createComment({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: issueNumber,
+                          body: '⚠️ **Self-Correction Failed** during API call.\n\nError: ' + apiError.message
+                      });
                   }
               }
             }
