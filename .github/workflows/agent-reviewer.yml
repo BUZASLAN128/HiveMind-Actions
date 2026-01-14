@@ -69,18 +69,31 @@ jobs:
           
           ls -lh coder_changes.diff
 
-      - name: Generate App Token
+      - name: Generate App Token (Optional - for custom branding)
         id: app-token
+        if: ${{ secrets.APP_ID != '' }}
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
+      # Use App token if available, otherwise fallback to GITHUB_TOKEN
+      - name: Set Token
+        id: set-token
+        run: |
+          if [ -n "${{ steps.app-token.outputs.token }}" ]; then
+            echo "token=${{ steps.app-token.outputs.token }}" >> $GITHUB_OUTPUT
+            echo "Using custom GitHub App token"
+          else
+            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "Using default GITHUB_TOKEN"
+          fi
+
       - name: Notify Review Started (PR Only)
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
-          github-token: ${{ steps.app-token.outputs.token }}
+          github-token: ${{ steps.set-token.outputs.token }}
           script: |
             // Find associated issue
             const prBody = context.payload.pull_request.body || '';
@@ -175,7 +188,7 @@ jobs:
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
         with:
-          github-token: ${{ steps.app-token.outputs.token }}
+          github-token: ${{ steps.set-token.outputs.token }}
           script: |
             const fs = require('fs');
             
@@ -212,23 +225,19 @@ jobs:
                   ${approved ? '> This PR is ready to merge.' : '> Please fix the issues mentioned above.'}`
                 });
                 
-                // 🤖 If rejected, optionally post comment tagging coder bot (for branding/visibility)
-                // This is OPTIONAL - actual fix is triggered via REST API below
+                // 🤖 If rejected, post separate comment to trigger Jules with Session ID
                 if (!approved) {
-                    const coderBot = process.env.CODER_BOT;  // Optional: set to '@google-labs-jules' or custom bot
-                    if (coderBot) {
-                        // Extract session ID from PR body for continuity
-                        const prTaskMatch = (context.payload.pull_request.body || '').match(/for task \[?(\d+)\]?/);
-                        const taskSessionId = prTaskMatch ? prTaskMatch[1] : '';
-                        const sessionInfo = taskSessionId ? `\n\n<!-- JULES_SESSION_ID: ${taskSessionId} -->` : '';
-                        
-                        await github.rest.issues.createComment({
-                            owner: context.repo.owner,
-                            repo: context.repo.repo,
-                            issue_number: context.payload.pull_request.number,
-                            body: `${coderBot} Please fix the issues mentioned in the review above. 🔧${sessionInfo}`
-                        });
-                    }
+                    // Extract session ID from PR body for continuity
+                    const prTaskMatch = (context.payload.pull_request.body || '').match(/for task \[?(\d+)\]?/);
+                    const taskSessionId = prTaskMatch ? prTaskMatch[1] : '';
+                    const sessionInfo = taskSessionId ? `\n\n<!-- JULES_SESSION_ID: ${taskSessionId} -->` : '';
+                    
+                    await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: context.payload.pull_request.number,
+                        body: `@google-labs-jules Please fix the issues mentioned in the review above. 🔧${sessionInfo}`
+                    });
                 }
             }
             

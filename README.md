@@ -22,25 +22,26 @@
 
 ## 🛠️ Installation
 
-1.  **Copy Files:**
-    - Copy `.github/workflows/` to your repo.
-    - Copy `.github/scripts/` to your repo.
-    - Copy `.github/prompts/` to your repo.
+### Step 1: Copy Files
+```bash
+# Copy these folders to your repo:
+.github/workflows/
+.github/scripts/
+.github/prompts/
+.github/swarm_rules.md
+```
 
-2.  **Create GitHub App (Mandatory for Bot-to-Bot Mentions):**
-    - Create a [GitHub App](https://github.com/settings/apps/new).
-    - Permissions: `Contents: R/W`, `Issues: R/W`, `Pull Requests: R/W`.
-    - Generate a **Private Key** and note the **App ID**.
-    - Install the App to your repository.
+### Step 2: Set Required Secrets
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `GEMINI_API_KEY` | ✅ Yes | Google Gemini API key for AI reviews |
+| `JULES_API_KEY` | ✅ Yes | Jules REST API key for self-correction loop |
 
-3.  **Set Secrets:**
-    - `GEMINI_API_KEY`: Your Google Gemini API Key.
-    - `JULES_API_KEY`: (Optional) API Key for the coding agent (Coder).
-    - `APP_ID`: The ID of your newly created GitHub App.
-    - `APP_PRIVATE_KEY`: The contents of the `.pem` private key file.
+### Step 3 (Optional): Custom Branding
+See [Bot Customization](#-bot-customization) section below.
 
-4.  **Configure Rules:**
-    - Edit `.github/swarm_rules.md` to define your **Golden Rules** (e.g., "No Float", "Use TypeScript").
+### Step 4: Configure Rules
+Edit `.github/swarm_rules.md` to define your **Golden Rules** (e.g., "No Float", "Use TypeScript").
 
 ## 🦁 Features
 
@@ -53,44 +54,33 @@ Immediate security and quality feedback on every push.
 - **🚨 Critical Issue Auto-Creation:** If the Reviewer detects a high-risk security flaw or a breaking logic error, it **automatically creates a GitHub Issue** to alert the team immediately.
 
 ### 3. Autonomous Self-Correction
-If the Reviewer rejects a Coder's PR, HiveMind enters a self-correction loop (up to 5 retries). The Reviewer mentions the Coder agent, passing the feedback, and the Coder attempts to fix the issue automatically.
+If the Reviewer rejects a Coder's PR, HiveMind enters a self-correction loop (up to 5 retries). The Reviewer sends feedback to Jules via REST API, and Jules attempts to fix the issue automatically.
+
+## 🎨 Bot Customization
+
+### Default: Using GITHUB_TOKEN
+By default, HiveMind uses the built-in `GITHUB_TOKEN` for all operations. This works out of the box with no additional setup.
+
+**Limitation:** Comments will show as `github-actions[bot]` instead of custom branding.
+
+### Optional: Custom GitHub App (Branding)
+For custom bot identity and branding, create your own GitHub App:
+
+1. Create a [GitHub App](https://github.com/settings/apps/new)
+2. Set permissions: `Contents: R/W`, `Issues: R/W`, `Pull Requests: R/W`
+3. Generate a **Private Key** and note the **App ID**
+4. Install the App to your repository
+5. Add these secrets:
+
+| Secret | Description |
+|--------|-------------|
+| `APP_ID` | Your GitHub App ID |
+| `APP_PRIVATE_KEY` | Contents of the `.pem` private key file |
+
+**Result:** Comments will show as `your-app-name[bot]` with custom avatar!
 
 ## 🤝 Open Source & Project Agnostic
 HiveMind is designed to work with any repository. By updating `.github/swarm_rules.md`, you can tailor the AI's "brain" to follow your specific architectural patterns and security standards.
-
-## 🎨 Bot Customization & Branding (Optional)
-
-Customize the bot identity and behavior for your organization:
-
-### Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `GEMINI_API_KEY` | ✅ | Google Gemini API key for AI reviews |
-| `JULES_API_KEY` | ⚠️ Optional | Jules REST API key for self-correction loop |
-| `CODER_BOT` | ⚠️ Optional | Bot to mention on PR rejection (e.g., `@google-labs-jules`) |
-| `APP_ID` | ✅ | GitHub App ID |
-| `APP_PRIVATE_KEY` | ✅ | GitHub App private key |
-
-### Custom Bot Branding
-
-To use your own bot identity instead of `@google-labs-jules`:
-
-```yaml
-# In your workflow
-env:
-  CODER_BOT: '@your-custom-bot'
-```
-
-Set to empty or don't define to disable bot mentions entirely (REST API still works).
-
-### GitHub App Setup
-
-1. Create a [GitHub App](https://github.com/settings/apps/new)
-2. **Permissions:** Contents (R/W), Issues (R/W), Pull Requests (R/W)
-3. Generate private key and note App ID
-4. Install to your repository
-5. Add `APP_ID` and `APP_PRIVATE_KEY` secrets
 
 ## 📜 License
 MIT
