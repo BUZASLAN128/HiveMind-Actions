@@ -212,19 +212,23 @@ jobs:
                   ${approved ? '> This PR is ready to merge.' : '> Please fix the issues mentioned above.'}`
                 });
                 
-                // 🤖 If rejected, post separate comment to trigger Jules with Session ID
+                // 🤖 If rejected, optionally post comment tagging coder bot (for branding/visibility)
+                // This is OPTIONAL - actual fix is triggered via REST API below
                 if (!approved) {
-                    // Extract session ID from PR body for continuity
-                    const prTaskMatch = (context.payload.pull_request.body || '').match(/for task \[?(\d+)\]?/);
-                    const taskSessionId = prTaskMatch ? prTaskMatch[1] : '';
-                    const sessionInfo = taskSessionId ? `\n\n<!-- JULES_SESSION_ID: ${taskSessionId} -->` : '';
-                    
-                    await github.rest.issues.createComment({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        issue_number: context.payload.pull_request.number,
-                        body: `@google-labs-jules Please fix the issues mentioned in the review above. 🔧${sessionInfo}`
-                    });
+                    const coderBot = process.env.CODER_BOT;  // Optional: set to '@google-labs-jules' or custom bot
+                    if (coderBot) {
+                        // Extract session ID from PR body for continuity
+                        const prTaskMatch = (context.payload.pull_request.body || '').match(/for task \[?(\d+)\]?/);
+                        const taskSessionId = prTaskMatch ? prTaskMatch[1] : '';
+                        const sessionInfo = taskSessionId ? `\n\n<!-- JULES_SESSION_ID: ${taskSessionId} -->` : '';
+                        
+                        await github.rest.issues.createComment({
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: context.payload.pull_request.number,
+                            body: `${coderBot} Please fix the issues mentioned in the review above. 🔧${sessionInfo}`
+                        });
+                    }
                 }
             }
             
