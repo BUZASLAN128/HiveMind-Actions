@@ -18,15 +18,14 @@ from ai_utils import setup_generative_ai, load_prompt_template, logger
 def get_diff_content(filepath: str = 'coder_changes.diff') -> str:
     """
     Reads the diff content from the specified file path.
-
-    Args:
-        filepath: Path to the diff file.
-
-    Returns:
-        The content of the file, or "No changes found" if not found.
+    Adds a notice if truncated to inform the AI.
     """
     try:
-        return Path(filepath).read_text(encoding="utf-8")[:30000]
+        content = Path(filepath).read_text(encoding="utf-8")
+        limit = 30000
+        if len(content) > limit:
+            return content[:limit] + "\n\n... [DIFF TRUNCATED DUE TO SIZE LIMIT] ..."
+        return content
     except FileNotFoundError:
         return "No changes found"
 
@@ -74,7 +73,16 @@ def generate_review(client: genai.Client, prompt: str) -> Dict[str, Any]:
             json_part = result_text.split('```')[1].split('```')[0]
         else:
             json_part = result_text
-        return json.loads(json_part.strip())
+        data = json.loads(json_part.strip())
+        
+        # Defensive: Ensure required keys exist to prevent crashes
+        required_keys = ['approved', 'score', 'verdict', 'project_compliance', 'security_ok']
+        for key in required_keys:
+            if key not in data:
+                logger.warning(f"⚠️ Missing key '{key}' in AI response. Injecting default.")
+                data[key] = False if any(x in key for x in ['approved', 'compliance', 'ok']) else "N/A"
+        
+        return data
     except (IndexError, json.JSONDecodeError) as e:
         logger.error(f"Could not parse JSON from AI response: {e}\nResponse: {result_text}")
         raise
@@ -131,6 +139,13 @@ def main() -> None:
     """
     try:
         logger.info("▶️ Starting code review process...")
+        
+        # 🔑 Explicit API Key check for faster debugging
+        if not os.getenv('GEMINI_API_KEY') and not os.getenv('GOOGLE_API_KEY'):
+            logger.error("❌ GEMINI_API_KEY is not set in environment variables.")
+            write_outputs(approved=False, comment="Critical error: AI API Key is missing.")
+            sys.exit(1)
+
         client = setup_generative_ai()
 
         diff_content = get_diff_content()
