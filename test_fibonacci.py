@@ -1,19 +1,18 @@
-import time
-from fibonacci import fibonacci
+import pytest
+from fibonacci import fibonacci, fibonacci_recursive
 
-def test_fibonacci_performance():
-    start_time = time.time()
-    try:
-        # This will cause a RecursionError, which is the intended behavior to demonstrate.
-        result = fibonacci(1000)
-        end_time = time.time()
-        execution_time = end_time - start_time
-        print(f"Fibonacci(1000) result: {result}")
-        print(f"Execution time for fibonacci(1000): {execution_time:.4f} seconds")
-    except RecursionError:
-        end_time = time.time()
-        execution_time = end_time - start_time
-        print(f"fibonacci(1000) exceeded the maximum recursion depth after {execution_time:.4f} seconds.")
+def test_fibonacci_iterative():
+    """
+    Tests the iterative fibonacci function with a few base cases and a small input.
+    """
+    assert fibonacci(0) == 0
+    assert fibonacci(1) == 1
+    assert fibonacci(10) == 55
+    assert fibonacci(20) == 6765
 
-if __name__ == "__main__":
-    test_fibonacci_performance()
+def test_fibonacci_recursive_performance():
+    """
+    Tests that the recursive fibonacci function raises a RecursionError for large inputs.
+    """
+    with pytest.raises(RecursionError):
+        fibonacci_recursive(1000)
