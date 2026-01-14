@@ -20,3 +20,9 @@
   - 🔍 **Analyst:** Analyzes requirements and plans.
   - 🤖 **Coder:** Implements code changes.
   - 🔎 **Reviewer:** Inspects code and ensures quality.
+
+## 🤖 Coder Agent Rules
+1. **NEVER STOP:** Do NOT pause for user confirmation. Complete ALL requirements autonomously.
+2. **NO QUESTIONS:** Do not ask "Does this sound good?" or similar. Just execute.
+3. **FULL COMPLETION:** Run tests, fix errors, and submit PR without waiting.
+4. **SELF-CORRECTION:** If tests fail, fix and retry automatically until passing.
