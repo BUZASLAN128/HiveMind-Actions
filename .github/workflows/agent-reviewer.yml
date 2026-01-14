@@ -307,38 +307,27 @@ jobs:
                   
                   const autoTriggers = comments.data.filter(c => c.body.includes('Reviewer Feedback (Automatic Trigger)')).length;
                   
-                  // Find Session ID - check multiple sources:
-                  // 1. PR body (Jules writes "for task X" there)
-                  // 2. Comments: My format <!-- JULES_SESSION_ID: 123 -->
-                  // 3. Comments: Jules' format "for task 123"
+                  // Find Session ID - check both formats:
+                  // 1. My format: <!-- JULES_SESSION_ID: 123 -->
+                  // 2. Jules' format: "for task 123" (in link)
                   let limitReached = autoTriggers >= MAX_RETRIES;
                   let sessionId = null;
 
-                  // First, check PR body for Jules task ID
-                  const prBody = context.payload.pull_request.body || '';
-                  const prBodyMatch = prBody.match(/for task (\d+)/);
-                  if (prBodyMatch) {
-                      sessionId = prBodyMatch[1];
-                      console.log('🔗 Found Session ID in PR body: ' + sessionId);
-                  }
-
-                  // If not found in body, check comments
-                  if (!sessionId) {
-                      for (const c of comments.data) {
-                          // Pattern 1: My hidden comment
-                          const myMatch = c.body.match(/<!-- JULES_SESSION_ID: (.+?) -->/);
-                          if (myMatch) {
-                              sessionId = myMatch[1];
-                              console.log('🔗 Found Session ID (my format): ' + sessionId);
-                              break;
-                          }
-                          // Pattern 2: Jules' native format in comment
-                          const julesMatch = c.body.match(/for task (\d+)/);
-                          if (julesMatch) {
-                              sessionId = julesMatch[1];
-                              console.log('🔗 Found Session ID (Jules format): ' + sessionId);
-                              break;
-                          }
+                  // Look for session ID in any comment
+                  for (const c of comments.data) {
+                      // Pattern 1: My hidden comment
+                      const myMatch = c.body.match(/<!-- JULES_SESSION_ID: (.+?) -->/);
+                      if (myMatch) {
+                          sessionId = myMatch[1];
+                          console.log('🔗 Found Session ID (my format): ' + sessionId);
+                          break;
+                      }
+                      // Pattern 2: Jules' native format
+                      const julesMatch = c.body.match(/for task (\d+)/);
+                      if (julesMatch) {
+                          sessionId = julesMatch[1];
+                          console.log('🔗 Found Session ID (Jules format): ' + sessionId);
+                          break;
                       }
                   }
                   
@@ -407,34 +396,16 @@ jobs:
                           julesResp = await response.json();
                           console.log('✅ Feedback sent to Jules session.');
                       } else {
-                          // CREATE NEW SESSION
-                          console.log('🆕 Creating NEW Jules Session...');
-                          const response = await fetch('https://jules.googleapis.com/v1alpha/sessions', {
-                              method: 'POST',
-                              headers: {
-                                  'Content-Type': 'application/json',
-                                  'X-Goog-Api-Key': apiKey
-                              },
-                              body: JSON.stringify({
-                                  prompt: 'Task: Fix issues in PR #' + context.payload.pull_request.number + '.\n\nReview Feedback:\n' + reviewText,
-                                  sourceContext: {
-                                      source: 'sources/github/' + context.repo.owner + '/' + context.repo.repo,
-                                      githubRepoContext: {
-                                          startingBranch: context.payload.pull_request.head.ref
-                                      }
-                                  },
-                                  automationMode: 'AUTO_CREATE_PR'
-                              })
+                          // NO SESSION FOUND - STOP (no fallback)
+                          console.log('❌ No Jules Session ID found! Cannot continue session.');
+                          console.log('📋 Checked PR body and comments for patterns: for task X, JULES_SESSION_ID');
+                          await github.rest.issues.createComment({
+                              owner: context.repo.owner,
+                              repo: context.repo.repo,
+                              issue_number: prNumber,
+                              body: '⚠️ **Session Continuity Failed**\n\nCould not find existing Jules session ID in PR body or comments.\n\n**Debug Info:**\n- PR Body checked: Yes\n- Comments checked: Yes\n- Patterns: `for task X`, `<!-- JULES_SESSION_ID: -->`\n\nPlease trigger Jules manually.'
                           });
-
-                          if (!response.ok) {
-                              const errorText = await response.text();
-                              throw new Error('Jules API Error (' + response.status + '): ' + errorText);
-                          }
-
-                          julesResp = await response.json();
-                          sessionId = julesResp.id || julesResp.name.split('/').pop();
-                          console.log('✅ New Session Created: ' + sessionId);
+                          return;
                       }
 
                       // Post confirmation comment WITH Session ID for next run
