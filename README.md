@@ -1,86 +1,107 @@
-# 🧠 HiveMind Actions
+# 🧠 HiveMind Actions 2.0
 
 > **The First "Serverless" Swarm AI for GitHub Actions.**  
 > Turn your repository into a self-healing, multi-agent AI workspace with zero infrastructure cost.
 
-![Swarm Status Report](https://via.placeholder.com/800x400?text=HiveMind+Status+Report+UI)
+![Swarm Status Report](https://via.placeholder.com/800x400?text=HiveMind+Swarm+Intelligence)
+
+---
 
 ## 🌟 What is this?
-**HiveMind** is an advanced, multi-agent workflow system that runs entirely on **GitHub Actions**. It transforms your Issue and PR management into an autonomous AI coordination game using Google Gemini.
+**HiveMind** is not just a bot. It's a **collaborative AI Swarm** that lives inside your GitHub Actions. 
+It enables **Analyst**, **Coder**, and **Reviewer** agents to work together, autonomously planning, coding, reviewing, and **fixing their own mistakes** without your intervention.
 
-- **Singleton Reporting:** STATUS REPORT
-- **Beast Mode (Continuous Inspection):** Push to `dev`, get a commit review in seconds.
-- **Swarm Protocol:** Analyst plans, Coder codes, Reviewer inspects. All synchronized.
+Think of it as having a **Senior Developer** (Jules) and a **Staff Engineer** (Reviewer) working 24/7 on your repo, for free (using Gemini Free Tier).
 
-## 🚀 Agents
+---
 
-| Agent | Icon | Role | Trigger |
-|-------|------|------|---------|
-| **Analyst** | 🔍 | Orchestrator & Planner | `@hivemind` (or `@analyst`) in Issue Comment |
-| **Coder** | 🤖 | Implementation & PR | Auto-triggered by Analyst |
-| **Reviewer** | 🔎 | Code Quality & Security | PR Open / Push to `dev` |
+## 🔥 Why HiveMind? (Killer Features)
+
+### 1. ♾️ Autonomous Self-Correction Loop
+The most powerful feature. If the **Reviewer** agent finds a bug or security flaw in a PR:
+1. It **REJECTS** the PR.
+2. It talks directly to **Jules** (the Coder) via API.
+3. Jules **fixes the code** and pushes a new commit.
+4. The Reviewer **re-evaluates** the fix.
+5. This loop continues until the code is perfect. **You sleep, they work.**
+
+### 2. 🧠 Smart Context & Golden Rules
+HiveMind doesn't just "guess". It follows your **Golden Rules** defined in `.github/swarm_rules.md`.
+- Have a specific architectural style? Write it down.
+- Want to ban `any` type in TypeScript? Add a rule.
+- The Swarm **strictly enforces** your standards.
+
+### 3. 🛡️ Beast Mode (Proactive Security)
+HiveMind acts as an **always-on security guard**.
+- Pushed code to `dev`? The Reviewer inspects it instantly.
+- Found a critical vulnerability? It autonomously **opens an Issue** and assigns it to the team.
+- No security hole goes unnoticed.
+
+### 4. ⚡ Competitive Intelligence (Smart Actions)
+We built features that rival paid tools like CodeRabbit or CodiumAI:
+- **Smart Ignore:** Automatically skips junk files (`package-lock.json`, `dist/`, `*.min.js`) to save tokens and reduce noise.
+- **Auto-Labeler:** AI analyzes your PR and tags it automatically (`bug`, `feature`, `security`, `refactor`).
+- **Token Optimization:** Uses efficient diff parsing to handle large PRs without breaking the bank.
+
+### 5. 🚀 Zero-Config (Serverless)
+No servers to manage. No Docker containers to host.
+- Runs entirely on **GitHub Actions runners**.
+- Uses **Google Gemini 2.0 Flash** (Fast & Free).
+- Just copy the workflow files and you're done.
+
+---
+
+## 🤖 The Swarm Agents
+
+| Agent | Icon | Role | Superpower |
+|-------|------|------|------------|
+| **Analyst** | 🔍 | Architect | Breaks down complex issues into step-by-step plans. |
+| **Coder (Jules)** | 🐝 | Droneworker | Writes code, fixes bugs, and handles git operations autonomously. |
+| **Reviewer** | 🔎 | Quality Gate | Enforces rules, checks security, and **blocks bad PRs**. |
+
+---
 
 ## 🛠️ Installation
 
-### Step 1: Copy Files
+### Step 1: Clone the Brain
+Copy these folders to your repository:
 ```bash
-# Copy these folders to your repo:
 .github/workflows/
 .github/scripts/
 .github/prompts/
 .github/swarm_rules.md
 ```
 
-### Step 2: Set Required Secrets
-| Secret | Required | Description |
-|--------|----------|-------------|
-| `GEMINI_API_KEY` | ✅ Yes | Google Gemini API key for AI reviews |
-| `JULES_API_KEY` | ✅ Yes | Jules REST API key for self-correction loop |
+### Step 2: Add Secrets
+Go to **Settings > Secrets and variables > Actions** and add:
+- `GEMINI_API_KEY`: Your Google Gemini API Key.
+- `JULES_API_KEY`: API Key for the Coder Agent trigger.
 
-### Step 3 (Optional): Custom Branding
-See [Bot Customization](#-bot-customization) section below.
+### Step 3: Define Roles
+Edit `.github/swarm_rules.md` to set your project's constitution.
 
-### Step 4: Configure Rules
-Edit `.github/swarm_rules.md` to define your **Golden Rules** (e.g., "No Float", "Use TypeScript").
+---
 
-## 🦁 Features
+## 🎨 Bot Customization & Branding
 
-### 1. Singleton Status Report
-HiveMind avoids notification spam by maintaining **ONE** single status comment in the Issue thread. It updates in real-time as agents progress through the task.
+Want your AI to look professional? You can customize the bot's identity.
 
-### 2. Beast Mode 2.0 (Push Inspector)
-Immediate security and quality feedback on every push.
-- **Commit Comments:** The Reviewer agent reviews your push and comments directly on the commit.
-- **🚨 Critical Issue Auto-Creation:** If the Reviewer detects a high-risk security flaw or a breaking logic error, it **automatically creates a GitHub Issue** to alert the team immediately.
+### Option A: Zero Config (Default)
+Uses the standard `github-actions[bot]`.
+- **Pros:** No setup required.
+- **Cons:** Generic avatar.
 
-### 3. Autonomous Self-Correction
-If the Reviewer rejects a Coder's PR, HiveMind enters a self-correction loop (up to 5 retries). The Reviewer sends feedback to Jules via REST API, and Jules attempts to fix the issue automatically.
-
-## 🎨 Bot Customization
-
-### Default: Using GITHUB_TOKEN
-By default, HiveMind uses the built-in `GITHUB_TOKEN` for all operations. This works out of the box with no additional setup.
-
-**Limitation:** Comments will show as `github-actions[bot]` instead of custom branding.
-
-### Optional: Custom GitHub App (Branding)
-For custom bot identity and branding, create your own GitHub App:
+### Option B: Custom Brand (Pro)
+Use your own App Name and Logo (e.g., `EnesBot`).
 
 1. Create a [GitHub App](https://github.com/settings/apps/new)
-2. Set permissions: `Contents: R/W`, `Issues: R/W`, `Pull Requests: R/W`
-3. Generate a **Private Key** and note the **App ID**
-4. Install the App to your repository
-5. Add these secrets:
+2. Permissions: `Contents: Read & Write`, `Issues: Read & Write`, `Pull Requests: Read & Write`
+3. Generate **Private Key** and get **App ID**.
+4. Add Secrets: `APP_ID` and `APP_PRIVATE_KEY`.
 
-| Secret | Description |
-|--------|-------------|
-| `APP_ID` | Your GitHub App ID |
-| `APP_PRIVATE_KEY` | Contents of the `.pem` private key file |
+**Result:** Your bot comments with **your logo** (like the one we generated!) and name.
 
-**Result:** Comments will show as `your-app-name[bot]` with custom avatar!
-
-## 🤝 Open Source & Project Agnostic
-HiveMind is designed to work with any repository. By updating `.github/swarm_rules.md`, you can tailor the AI's "brain" to follow your specific architectural patterns and security standards.
+---
 
 ## 📜 License
-MIT
+MIT - Free to fork, free to use, free to conquer.
