@@ -103,5 +103,14 @@ Use your own App Name and Logo (e.g., `EnesBot`).
 
 ---
 
+## 🤝 Contributing & Support
+We love community contributions!
+- See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+- **Rules:** All PRs must pass the AI Reviewer checks.
+- **Contact:** [buzaslan.ea@gmail.com](mailto:buzaslan.ea@gmail.com)
+
+---
+
 ## 📜 License
 MIT - Free to fork, free to use, free to conquer.
+
