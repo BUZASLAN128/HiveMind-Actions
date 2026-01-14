@@ -25,7 +25,8 @@ jobs:
   review:
     name: '📝 Code Review'
     runs-on: ubuntu-latest
-    # Removed restrictive filter - now runs on ALL PRs
+    # 🔐 Security: Only repo owner or dependabot can trigger this workflow
+    if: github.actor == github.repository_owner || github.actor == 'dependabot[bot]'
     
     permissions:
       contents: write # Required for commit comments
