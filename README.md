@@ -8,7 +8,7 @@
 ## 🌟 What is this?
 **HiveMind** is an advanced, multi-agent workflow system that runs entirely on **GitHub Actions**. It transforms your Issue and PR management into an autonomous AI coordination game using Google Gemini.
 
-- **Singleton Reporting:** No more spam. One Issue Comment to rule them all.
+- **Singleton Reporting:** STATUS REPORT
 - **Beast Mode (Continuous Inspection):** Push to `dev`, get a commit review in seconds.
 - **Swarm Protocol:** Analyst plans, Coder codes, Reviewer inspects. All synchronized.
 
