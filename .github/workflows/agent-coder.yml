@@ -46,6 +46,10 @@ jobs:
   # Check trigger and extract prompt
   check-trigger:
     runs-on: ubuntu-latest
+    # 🔐 Least privilege permissions
+    permissions:
+      contents: read
+      issues: read
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
       prompt: ${{ steps.check.outputs.prompt }}
