@@ -1,0 +1,330 @@
+# 🤖 HiveMind Coder Agent
+# Code implementation and PR creation
+#
+# Trigger: workflow_dispatch (from Analyst), @coder comment or ai-ready label
+# Task: Write code, Test, Open PR (Async)
+
+name: '🤖 Agent: Coder (Gemini)'
+
+on:
+  # Direct trigger from Analyst workflow (works with GITHUB_TOKEN!)
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number'
+        required: true
+        type: string
+      coder_prompt:
+        description: 'Task prompt for the Coder'
+        required: true
+        type: string
+      comment_id:
+        description: 'Status comment ID'
+        required: false
+        type: string
+      base_branch:
+        description: 'Base branch to start from'
+        required: false
+        default: 'main'
+        type: string
+  # Backup: Manual @coder comment
+  issue_comment:
+    types: [created]
+  # Backup: ai-ready label
+  issues:
+    types: [labeled]
+
+concurrency:
+  group: coder-${{ github.event.inputs.issue_number || github.event.issue.number }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: 'bash'
+
+jobs:
+  # Check trigger and extract prompt
+  check-trigger:
+    runs-on: ubuntu-latest
+    # 🔐 Least privilege permissions
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+      prompt: ${{ steps.check.outputs.prompt }}
+      issue_number: ${{ steps.check.outputs.issue_number }}
+      comment_id: ${{ steps.check.outputs.comment_id }}
+    steps:
+      - name: Check trigger
+        id: check
+        env:
+          INPUT_ISSUE_NUMBER: ${{ github.event.inputs.issue_number }}
+          INPUT_CODER_PROMPT: ${{ github.event.inputs.coder_prompt }}
+        uses: actions/github-script@v8
+        with:
+          script: |
+            let shouldRun = false;
+            let prompt = '';
+            let issueNumber = '';
+            let commentId = '';
+
+            // 🎯 PRIMARY: workflow_dispatch (Direct trigger from Analyst)
+            if (context.eventName === 'workflow_dispatch') {
+              shouldRun = true;
+              issueNumber = process.env.INPUT_ISSUE_NUMBER;
+              prompt = process.env.INPUT_CODER_PROMPT;
+              commentId = context.payload.inputs.comment_id || '';
+              console.log('✅ workflow_dispatch triggered. Issue #' + issueNumber + ', Comment ID: ' + commentId);
+            }
+            
+            // 🔄 BACKUP 1: Issue Comment containing @coder
+            if (context.eventName === 'issue_comment') {
+              issueNumber = context.payload.issue.number;
+              const comment = context.payload.comment.body || '';
+              const author = context.payload.comment.user.login;
+              const association = context.payload.comment.author_association;
+              const isTrusted = ['OWNER', 'COLLABORATOR', 'MEMBER'].includes(association) || author.includes('github-actions') || author.includes('google-labs');
+              
+              if (isTrusted && comment.includes('@coder')) {
+                shouldRun = true;
+                const match = comment.match(/<!-- CODER_PROMPT_START([\s\S]*?)CODER_PROMPT_END -->/);
+                if (match && match[1]) {
+                  prompt = match[1].trim();
+                } else {
+                  prompt = comment.replace('@coder', '').trim();
+                }
+              }
+            }
+            
+            // 🔄 BACKUP 2: Label 'ai-ready' added
+            if (context.eventName === 'issues' && context.payload.action === 'labeled') {
+              issueNumber = context.payload.issue.number;
+              if (context.payload.label.name === 'ai-ready') {
+                shouldRun = true;
+                const comments = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  per_page: 10,
+                  sort: 'created',
+                  direction: 'desc'
+                });
+
+                for (const c of comments.data) {
+                  const match = c.body.match(/<!-- CODER_PROMPT_START([\s\S]*?)CODER_PROMPT_END -->/);
+                  if (match && match[1]) {
+                    prompt = match[1].trim();
+                    break;
+                  }
+                }
+              }
+            }
+            
+            // Fallback prompt
+            if (!prompt && issueNumber) {
+              const issue = context.payload.issue || {};
+              prompt = `Issue #${issueNumber}: ${issue.title || 'Task'}\n\n${issue.body || 'No details'}`;
+            }
+
+            core.setOutput('should_run', shouldRun ? 'true' : 'false');
+            core.setOutput('prompt', prompt);
+            core.setOutput('issue_number', String(issueNumber));
+            core.setOutput('comment_id', String(commentId || ''));
+
+  code:
+    name: '💻 Implementation'
+    needs: check-trigger
+    if: |
+      needs.check-trigger.outputs.should_run == 'true' && (
+        github.actor == github.repository_owner || 
+        github.actor == 'buzaslan129' || 
+        github.actor == 'dependabot[bot]' || 
+        github.actor == 'github-actions[bot]'
+      )
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Notify Coder Starting
+        uses: actions/github-script@v8
+        env:
+          ISSUE_NUMBER: ${{ needs.check-trigger.outputs.issue_number }}
+        with:
+          script: |
+            const marker = '<!-- SWARM_STATUS_REPORT -->';
+            const issueNumber = parseInt(process.env.ISSUE_NUMBER);
+            const commentId = '${{ needs.check-trigger.outputs.comment_id }}';
+
+            const table = [
+              '| Agent | Status | Task |',
+              '|-------|--------|------|',
+              '| 🔍 Analyst | ✅ **COMPLETED** | Issue Analysis |',
+              '| 🤖 Coder | 🔄 **WORKING** | Implementation |',
+              '| 🔎 Reviewer | ⏸️ Waiting | - |'
+            ].join('\n');
+
+            const taskList = [
+              '### 📝 Task List',
+              '- [x] Issue Analysis (Analyst)',
+              '- [/] Code Changes (Coder)',
+              '- [ ] Create PR (Coder)',
+              '- [ ] PR Review (Reviewer)'
+            ].join('\n');
+
+            const header = `## 🐝 HiveMind Status Report ${marker}`;
+            const body = `${header}\n\n${table}\n\n${taskList}\n\n> 🤖 Coder: Coding started, please wait...`;
+
+            if (commentId && commentId !== '') {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: parseInt(commentId),
+                body: body
+              });
+            } else {
+              const comments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                per_page: 50,
+                sort: 'created',
+                direction: 'desc'
+              });
+              const statusComment = comments.data.find(c => c.body.includes(marker));
+              if (statusComment) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: statusComment.id,
+                  body: body
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: body
+                });
+              }
+            }
+
+      - name: Read Swarm Rules
+        id: rules
+        run: |
+          if [ -f .github/swarm_rules.md ]; then
+            content=$(cat .github/swarm_rules.md)
+            echo "RULES<<EOF" >> $GITHUB_ENV
+            echo "$content" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          else
+            echo "⚠️ Rules file not found!"
+            echo "RULES=No specific rules found." >> $GITHUB_ENV
+          fi
+
+      - name: Invoke Coder (Async)
+        uses: google-labs-code/jules-action@v1.0.0
+        with:
+          jules_api_key: ${{ secrets.JULES_API_KEY }}
+          starting_branch: ${{ github.event.inputs.base_branch || 'main' }}
+          prompt: |
+            You are the Swarm Coder Agent.
+            
+            ## Task Details (from Analyst):
+            ${{ needs.check-trigger.outputs.prompt }}
+            
+            ## PROJECT RULES (MUST FOLLOW):
+            ${{ env.RULES }}
+            
+            ## Focus & Boundaries:
+            - Focus only on application code.
+            - **IMPORTANT**: Do not modify `.github/workflows/` unless explicitly asked.
+            - Ignore recent agent updates in last commits unless related to your task.
+            
+            ## Your Tasks:
+            1. Write the code.
+            2. Run tests.
+            3. Open PR - **MUST** include this in the description: "Fixes #${{ needs.check-trigger.outputs.issue_number }}".
+               This is critical for auto-triggering the Reviewer agent and linking the issue.
+            
+            ## PR Description Format (IMPORTANT):
+            Use the following format exactly, including the hidden comment:
+            ```
+            ## Changes
+            - [List of changes]
+            
+            Fixes #${{ needs.check-trigger.outputs.issue_number }}
+            <!-- SWARM_COMMENT_ID: ${{ needs.check-trigger.outputs.comment_id }} -->
+            ```
+            
+            Use English for commit messages.
+
+      - name: Notify Coder Invoked
+        uses: actions/github-script@v8
+        env:
+          ISSUE_NUMBER: ${{ needs.check-trigger.outputs.issue_number }}
+        with:
+          script: |
+            const marker = '<!-- SWARM_STATUS_REPORT -->';
+            const issueNumber = parseInt(process.env.ISSUE_NUMBER);
+            const commentId = '${{ needs.check-trigger.outputs.comment_id }}';
+
+            const table = [
+              '| Agent | Status | Task |',
+              '|-------|--------|------|',
+              '| 🔍 Analyst | ✅ **COMPLETED** | Issue Analysis |',
+              '| 🤖 Coder | ☁️ **CLOUD PROCESSING** | Implementation |',
+              '| 🔎 Reviewer | ⏸️ Waiting | - |'
+            ].join('\n');
+
+            const taskList = [
+              '### 📝 Task List',
+              '- [x] Issue Analysis (Analyst)',
+              '- [x] Code Changes (Coder)',
+              '- [/] Create PR (Coder)',
+              '- [ ] PR Review (Reviewer)'
+            ].join('\n');
+
+            const header = `## 🐝 HiveMind Status Report ${marker}`;
+            const body = `${header}\n\n${table}\n\n${taskList}\n\n> 🕐 Coder running in background. **Reviewer** will be auto-triggered on PR.`;
+
+            if (commentId && commentId !== '') {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: parseInt(commentId),
+                body: body
+              });
+            } else {
+              const comments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                per_page: 50,
+                sort: 'created',
+                direction: 'desc'
+              });
+              const statusComment = comments.data.find(c => c.body.includes(marker));
+              if (statusComment) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: statusComment.id,
+                  body: body
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: body
+                });
+              }
+            }
