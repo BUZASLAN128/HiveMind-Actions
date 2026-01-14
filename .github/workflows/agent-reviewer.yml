@@ -29,7 +29,9 @@ jobs:
     if: |
       github.actor == github.repository_owner || 
       github.actor == 'buzaslan129' || 
+      github.actor == 'skoyn7213-maker' || 
       github.actor == 'dependabot[bot]' || 
+      github.actor == 'google-labs-jules[bot]' ||
       github.actor == 'github-actions[bot]'
     
     permissions:
@@ -476,7 +478,8 @@ jobs:
               }
             }
       - name: Post Review (Beast Mode - Push)
-        if: github.event_name == 'push'
+        # 🛡️ Skip if actor is Jules (handled in PR mode) or if no issues found
+        if: always() && github.event_name == 'push' && github.actor != 'google-labs-jules[bot]'
         uses: actions/github-script@v8
         with:
           github-token: ${{ steps.app-token.outputs.token }}

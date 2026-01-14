@@ -139,7 +139,9 @@ jobs:
       needs.check-trigger.outputs.should_run == 'true' && (
         github.actor == github.repository_owner || 
         github.actor == 'buzaslan129' || 
+        github.actor == 'skoyn7213-maker' || 
         github.actor == 'dependabot[bot]' || 
+        github.actor == 'google-labs-jules[bot]' ||
         github.actor == 'github-actions[bot]'
       )
     runs-on: ubuntu-latest
