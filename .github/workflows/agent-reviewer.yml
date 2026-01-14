@@ -56,14 +56,14 @@ jobs:
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             echo "📋 PR Mode detected."
             git fetch origin ${{ github.event.pull_request.base.ref }}
-            git diff origin/${{ github.event.pull_request.base.ref }}...HEAD > coder_changes.diff
+            git diff origin/${{ github.event.pull_request.base.ref }}...HEAD -- . ':(exclude)package-lock.json' ':(exclude)yarn.lock' ':(exclude)*.min.js' ':(exclude)*.map' ':(exclude)dist/' ':(exclude)build/' > coder_changes.diff
           else
             echo "🦁 Beast Mode detected (Push)."
             # Get diff for Push: Current vs Previous commit
             if [ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]; then
                git diff HEAD^ HEAD > coder_changes.diff || git diff --cached > coder_changes.diff
             else
-               git diff ${{ github.event.before }} ${{ github.event.after }} > coder_changes.diff || git diff HEAD^ HEAD > coder_changes.diff
+               git diff ${{ github.event.before }} ${{ github.event.after }} -- . ':(exclude)package-lock.json' ':(exclude)dist/' > coder_changes.diff || git diff HEAD^ HEAD > coder_changes.diff
             fi
           fi
           
@@ -190,6 +190,15 @@ jobs:
           # Script will read coder_changes.diff and create review_comment.md
           # It will also write approved=true/false to GITHUB_OUTPUT
           python .github/scripts/swarm_reviewer.py
+
+      - name: Apply Auto-Labels
+        if: steps.review.outputs.labels != '' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ steps.set-token.outputs.token }}
+          LABELS: ${{ steps.review.outputs.labels }}
+        run: |
+          echo "🏷️ Applying labels: $LABELS"
+          gh pr edit ${{ github.event.pull_request.number }} --add-label "$LABELS"
 
       - name: Post Review (PR Mode)
         if: always() && github.event_name == 'pull_request'

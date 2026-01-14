@@ -16,6 +16,7 @@ ${{ diff }}
 - [ ] SQL injection risks?
 - [ ] XSS risks?
 - [ ] Code quality sufficient?
+- [ ] Appropriate labels selected?
 
 ## Output (JSON):
 {{
@@ -26,7 +27,8 @@ ${{ diff }}
   "suggestions": ["Suggestion 1", "Suggestion 2"],
   "project_compliance": true/false,
   "security_ok": true/false,
-  "verdict": "APPROVE / REQUEST_CHANGES / REJECT"
+  "verdict": "APPROVE / REQUEST_CHANGES / REJECT",
+  "labels": ["bug", "enhancement", "documentation", "security", "refactor"]
 }}
 
 OUTPUT ONLY JSON.

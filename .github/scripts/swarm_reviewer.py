@@ -110,18 +110,17 @@ def format_review_comment(data: Dict[str, Any]) -> str:
 {suggestions}
 """
 
-def write_outputs(approved: bool, comment: str) -> None:
+def write_outputs(approved: bool, comment: str, labels: List[str] = None) -> None:
     """
-    Writes the approval status and comment to GitHub Actions outputs.
-
-    Args:
-        approved: Whether the code is approved.
-        comment: The review comment to write.
+    Writes outputs to GitHub Actions.
     """
     github_output = os.getenv('GITHUB_OUTPUT')
     if github_output:
         with open(github_output, 'a', encoding="utf-8") as f:
             f.write(f"approved={str(approved).lower()}\n")
+            if labels:
+                # Join labels with comma for use in workflow
+                f.write(f"labels={','.join(labels)}\n")
 
     Path("review_comment.md").write_text(comment, encoding="utf-8")
 
@@ -150,7 +149,8 @@ def main() -> None:
         approved = review_data.get('approved', False) and review_data.get('project_compliance', False)
 
         comment = format_review_comment(review_data)
-        write_outputs(approved, comment)
+        labels = review_data.get('labels', [])
+        write_outputs(approved, comment, labels)
 
         logger.info(f"🏁 Review completed! Approved: {approved}")
 
