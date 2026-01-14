@@ -59,6 +59,19 @@ No servers to manage. No Docker containers to host.
 | **Analyst** | 🔍 | Architect | Breaks down complex issues into step-by-step plans. |
 | **Coder (Jules)** | 🐝 | Droneworker | Writes code, fixes bugs, and handles git operations autonomously. |
 | **Reviewer** | 🔎 | Quality Gate | Enforces rules, checks security, and **blocks bad PRs**. |
+ 
+### 🔄 Swarm Workflow
+```mermaid
+graph TD
+    A["👤 User (Issue/Comment)"] -->|@analyst| B["🔍 Analyst Agent"]
+    B -->|Plans & Tasks| C["🐝 Coder Agent (Jules)"]
+    C -->|Writes Code & opens PR| D["🔎 Reviewer Agent"]
+    D -->|Checks Security & Rules| E{Analysis Result}
+    E -->|Approved| F["✅ PR Merged"]
+    E -->|Rejected| G["❌ Self-Correction Loop"]
+    G -->|Instructions| C
+    F -->|Done| H["🎉 Task Completed"]
+```
 
 ---
 
