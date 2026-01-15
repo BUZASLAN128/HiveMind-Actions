@@ -138,10 +138,10 @@ def write_outputs(approved: bool, comment: str, labels: List[str] = None) -> Non
     github_output = os.getenv('GITHUB_OUTPUT')
     if github_output:
         with open(github_output, 'a', encoding="utf-8") as f:
-            f.write(f"approved={str(approved).lower()}")
+            f.write(f"approved={str(approved).lower()}\n")
             if labels:
                 # Join labels with comma for use in workflow
-                f.write(f"\nlabels={','.join(labels)}")
+                f.write(f"labels={','.join(labels)}\n")
 
     comment = redact_sensitive_data(comment)
     Path("review_comment.md").write_text(comment, encoding="utf-8")
