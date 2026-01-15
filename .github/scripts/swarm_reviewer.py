@@ -97,12 +97,13 @@ def generate_review(client: genai.Client, prompt: str, config: Dict[str, Any]) -
         logger.error(f"Could not parse JSON from AI response: {e}\nResponse: {result_text}")
         raise
 
-def format_review_comment(data: Dict[str, Any]) -> str:
+def format_review_comment(data: Dict[str, Any], final_verdict_approved: bool) -> str:
     """
     Formats a markdown comment using the data from the AI model.
 
     Args:
         data: JSON data from the AI model.
+        final_verdict_approved: The final decision on whether the PR is approved.
 
     Returns:
         Formatted comment text in markdown.
@@ -111,10 +112,12 @@ def format_review_comment(data: Dict[str, Any]) -> str:
     issues = "\n".join([f"- {i}" for i in data.get("issues", [])]) if data.get("issues") else "- No issues detected. Good job! 👏"
     suggestions = "\n".join([f"- {s}" for s in data.get("suggestions", [])]) if data.get("suggestions") else "- No additional suggestions."
 
+    final_verdict_text = "✅ APPROVED" if final_verdict_approved else "❌ REJECTED"
+
     return f"""## 🔎 Gemini Code Review
 
 **Score:** {data.get('score', 'N/A')}/10
-**Verdict:** {data.get('verdict', 'N/A')}
+**Verdict:** {final_verdict_text}
 **Project Compliance:** {'✅' if data.get('project_compliance') else '❌'}
 **Security:** {'✅' if data.get('security_ok') else '❌'}
 
@@ -135,10 +138,10 @@ def write_outputs(approved: bool, comment: str, labels: List[str] = None) -> Non
     github_output = os.getenv('GITHUB_OUTPUT')
     if github_output:
         with open(github_output, 'a', encoding="utf-8") as f:
-            f.write(f"approved={str(approved).lower()}\n")
+            f.write(f"approved={str(approved).lower()}")
             if labels:
                 # Join labels with comma for use in workflow
-                f.write(f"labels={','.join(labels)}\n")
+                f.write(f"\nlabels={','.join(labels)}")
 
     comment = redact_sensitive_data(comment)
     Path("review_comment.md").write_text(comment, encoding="utf-8")
@@ -187,12 +190,13 @@ def main() -> None:
 
         review_data = generate_review(client, formatted_prompt, config)
 
-        # Decision mechanism: Score must be 9+, project_compliance must be true, and there must be no issues.
+        # Decision mechanism: Score must be >= min_review_score, project_compliance must be true, and there must be no issues.
+        min_score = config.get('min_review_score', 9)
         score = review_data.get('score', 0)
         has_issues = bool(review_data.get('issues', []))
-        approved = review_data.get('project_compliance', False) and score >= 9 and not has_issues
+        approved = review_data.get('project_compliance', False) and score >= min_score and not has_issues
 
-        comment = format_review_comment(review_data)
+        comment = format_review_comment(review_data, approved)
         labels = review_data.get('labels', [])
         write_outputs(approved, comment, labels)
 
