@@ -31,16 +31,22 @@ def get_diff_content(filepath: str = 'coder_changes.diff') -> str:
         return "No changes found"
 
 
-def format_prompt(prompt_template: str, diff_content: str, rules: str, issue_title: str, issue_body: str) -> str:
+def format_prompt(prompt_template: str, diff_content: str, issue_title: str, issue_body: str) -> str:
     """
-    Formats the prompt template with diff content, rules, and issue details.
+    Formats the prompt template with diff content and issue details.
 
     # FUTURE: Consider using a templating engine like Jinja2 for more complex prompts.
     """
-    prompt = prompt_template.replace("${{ diff }}", diff_content)
-    prompt = prompt.replace("${{ rules }}", rules)
-    prompt = prompt.replace("${{ issue_title }}", issue_title)
-    prompt = prompt.replace("${{ issue_body }}", issue_body)
+    substitutions = {
+        "diff": diff_content,
+        "issue_title": issue_title,
+        "issue_body": issue_body
+    }
+
+    prompt = prompt_template
+    for key, value in substitutions.items():
+        prompt = prompt.replace(f"${{{{ {key} }}}}", value)
+
     return prompt
 
 def generate_review(client: genai.Client, prompt: str, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -171,14 +177,14 @@ def main() -> None:
 
         config = load_config()
         prompt_template = load_prompt_template(Path(".github/prompts/swarm_reviewer.prompt"))
-        rules = load_rules()
-        formatted_prompt = format_prompt(prompt_template, diff_content, rules, issue_title, issue_body)
+        formatted_prompt = format_prompt(prompt_template, diff_content, issue_title, issue_body)
 
         review_data = generate_review(client, formatted_prompt, config)
 
-        # Decision mechanism: Score must be 9+ and project_compliance must be true.
+        # Decision mechanism: Score must be 9+, project_compliance must be true, and there must be no issues.
         score = review_data.get('score', 0)
-        approved = review_data.get('project_compliance', False) and score >= 9
+        has_issues = bool(review_data.get('issues', []))
+        approved = review_data.get('project_compliance', False) and score >= 9 and not has_issues
 
         comment = format_review_comment(review_data)
         labels = review_data.get('labels', [])
