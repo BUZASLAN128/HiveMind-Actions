@@ -85,17 +85,16 @@ def generate_review(client: genai.Client, prompt: str, config: Dict[str, Any]) -
             json_part = result_text
         data = json.loads(json_part.strip())
         
-        # Defensive: Ensure required keys exist to prevent crashes
-        required_keys = ['approved', 'score', 'verdict', 'project_compliance', 'security_ok']
-        for key in required_keys:
-            if key not in data:
-                logger.warning(f"⚠️ Missing key '{key}' in AI response. Injecting default.")
-                data[key] = False if any(x in key for x in ['approved', 'compliance', 'ok']) else "N/A"
+        # Validate that all required keys are present in the AI's response.
+        required_keys = ['score', 'project_compliance', 'security_ok', 'issues', 'suggestions', 'positives']
+        missing_keys = [key for key in required_keys if key not in data]
+        if missing_keys:
+            raise ValueError(f"AI response is missing required keys: {', '.join(missing_keys)}")
         
         return data
     except (IndexError, json.JSONDecodeError) as e:
         logger.error(f"Could not parse JSON from AI response: {e}\nResponse: {result_text}")
-        raise
+        raise ValueError("AI response was not valid JSON.") from e
 
 def format_review_comment(data: Dict[str, Any], final_verdict_approved: bool) -> str:
     """
@@ -202,13 +201,10 @@ def main() -> None:
 
         logger.info(f"🏁 Review completed! Approved: {approved}")
 
-    except (json.JSONDecodeError, KeyError) as e:
-        logger.error(f"❌ Could not parse AI response or missing keys: {e}", exc_info=True)
-        write_outputs(approved=False, comment=f"Error processing AI response: {e}")
-        sys.exit(1)
     except ValueError as e:
-        logger.error(f"❌ Configuration error: {e}", exc_info=True)
-        write_outputs(approved=False, comment=f"Configuration error: {e}")
+        logger.error(f"❌ A validation error occurred: {e}", exc_info=True)
+        error_comment = f"## 🔎 Gemini Code Review\n\n**Verdict:** ❌ REJECTED\n\nA critical error occurred while processing the AI's response:\n`{e}`"
+        write_outputs(approved=False, comment=error_comment)
         sys.exit(1)
     except Exception as e:
         logger.error(f"❌ Unexpected error during review: {e}", exc_info=True)
