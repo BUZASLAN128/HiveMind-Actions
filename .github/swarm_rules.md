@@ -29,3 +29,4 @@
 
 ## 🤖 Reviewer Agent Rules
 1. **High Standards:** Code must achieve a minimum score of 9/10 to be approved.
+2. **All Issues Must Be Resolved:** The Coder Agent must resolve all issues raised by the Reviewer Agent before the code can be approved.
