@@ -1,7 +1,7 @@
 # 🤖 HiveMind Coder Agent
 # Code implementation and PR creation
 #
-# Trigger: workflow_dispatch (from Analyst), @coder comment or ai-ready label
+# Trigger: workflow_dispatch (from Analyst)
 # Task: Write code, Test, Open PR (Async)
 
 name: '🤖 Agent: Coder (Gemini)'
@@ -27,15 +27,9 @@ on:
         required: false
         default: 'main'
         type: string
-  # Backup: Manual @coder comment
-  issue_comment:
-    types: [created]
-  # Backup: ai-ready label
-  issues:
-    types: [labeled]
 
 concurrency:
-  group: coder-${{ github.event.inputs.issue_number || github.event.issue.number }}
+  group: coder-${{ github.event.inputs.issue_number }}
   cancel-in-progress: false
 
 defaults:
@@ -45,11 +39,7 @@ defaults:
 jobs:
   # Check trigger and extract prompt
   check-trigger:
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'issue_comment' && 
-       (contains(github.event.comment.body, '@coder') || contains(github.event.comment.body, 'enes-aii'))) ||
-      (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'ai-ready')
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     # 🔐 Least privilege permissions
     permissions:
@@ -82,55 +72,6 @@ jobs:
               prompt = process.env.INPUT_CODER_PROMPT;
               commentId = context.payload.inputs.comment_id || '';
               console.log('✅ workflow_dispatch triggered. Issue #' + issueNumber + ', Comment ID: ' + commentId);
-            }
-            
-            // 🔄 BACKUP 1: Issue Comment containing @coder
-            if (context.eventName === 'issue_comment') {
-              issueNumber = context.payload.issue.number;
-              const comment = context.payload.comment.body || '';
-              const author = context.payload.comment.user.login;
-              const association = context.payload.comment.author_association;
-              const isTrusted = ['OWNER', 'COLLABORATOR', 'MEMBER'].includes(association) || author.includes('github-actions') || author.includes('google-labs');
-              
-              if (isTrusted && comment.includes('@coder')) {
-                shouldRun = true;
-                const match = comment.match(/<!-- CODER_PROMPT_START([\s\S]*?)CODER_PROMPT_END -->/);
-                if (match && match[1]) {
-                  prompt = match[1].trim();
-                } else {
-                  prompt = comment.replace('@coder', '').trim();
-                }
-              }
-            }
-            
-            // 🔄 BACKUP 2: Label 'ai-ready' added
-            if (context.eventName === 'issues' && context.payload.action === 'labeled') {
-              issueNumber = context.payload.issue.number;
-              if (context.payload.label.name === 'ai-ready') {
-                shouldRun = true;
-                const comments = await github.rest.issues.listComments({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: issueNumber,
-                  per_page: 10,
-                  sort: 'created',
-                  direction: 'desc'
-                });
-
-                for (const c of comments.data) {
-                  const match = c.body.match(/<!-- CODER_PROMPT_START([\s\S]*?)CODER_PROMPT_END -->/);
-                  if (match && match[1]) {
-                    prompt = match[1].trim();
-                    break;
-                  }
-                }
-              }
-            }
-            
-            // Fallback prompt
-            if (!prompt && issueNumber) {
-              const issue = context.payload.issue || {};
-              prompt = `Issue #${issueNumber}: ${issue.title || 'Task'}\n\n${issue.body || 'No details'}`;
             }
 
             // 🔐 Trust Calculation (Dinamik API tabanlı yetki kontrolü)
