@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 from google import genai
-from ai_utils import setup_generative_ai, load_prompt_template, logger
+from ai_utils import setup_generative_ai, load_prompt_template, logger, load_rules, redact_sensitive_data, load_config
 
 def get_codebase_context(root_dir: Path, max_files: int = 20, max_len: int = 2000) -> str:
     """
@@ -46,12 +46,6 @@ def get_codebase_context(root_dir: Path, max_files: int = 20, max_len: int = 200
 
     return "\n".join(context_parts)
 
-def load_rules(filepath: str = '.github/swarm_rules.md') -> str:
-    """Reads project rules from the configuration file."""
-    try:
-        return Path(filepath).read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return "No project rules found."
 
 def load_and_format_prompt(prompt_path: Path, issue_data: Dict[str, Any], context: str, rules: str) -> str:
     """
@@ -75,23 +69,8 @@ def load_and_format_prompt(prompt_path: Path, issue_data: Dict[str, Any], contex
         rules=rules
     )
 
-def _redact_sensitive_data(text: str) -> str:
-    """Redacts potentially sensitive data from text (API keys, passwords, etc.)."""
-    import re
-    # Patterns for common sensitive data formats
-    patterns = [
-        (r'sk-[a-zA-Z0-9]{20,}', '[REDACTED_OPENAI_KEY]'),
-        (r'AIza[a-zA-Z0-9_-]{35}', '[REDACTED_GOOGLE_KEY]'),
-        (r'ghp_[a-zA-Z0-9]{36}', '[REDACTED_GITHUB_TOKEN]'),
-        (r'xox[bap]-[a-zA-Z0-9-]{10,}', '[REDACTED_SLACK_TOKEN]'),
-        (r'(?i)(password|secret|key|token|auth)\s*[=:]\s*["\']?[a-zA-Z0-9_.@/-]{3,}["\']?', r'\1=[REDACTED]'),
-        (r'[a-zA-Z0-9._%+-]+:[a-zA-Z0-9._%+-]+@', '[REDACTED_USER_PASS]@'), # DB credentials in URLs
-    ]
-    for pattern, replacement in patterns:
-        text = re.sub(pattern, replacement, text)
-    return text
 
-def analyze_issue(client: genai.Client, prompt: str, max_retries: int = 2) -> Dict[str, Any]:
+def analyze_issue(client: genai.Client, prompt: str, config: Dict[str, Any], max_retries: int = 2) -> Dict[str, Any]:
     """
     Generates an issue analysis from the AI model using the provided prompt.
     Includes robust JSON parsing with retries and regex fallback.
@@ -99,6 +78,7 @@ def analyze_issue(client: genai.Client, prompt: str, max_retries: int = 2) -> Di
     Args:
         client: genai.Client to use.
         prompt: Formatted prompt to send to AI.
+        config: Dictionary containing configuration values.
         max_retries: Maximum number of retries on JSON parse failure.
 
     Returns:
@@ -106,11 +86,12 @@ def analyze_issue(client: genai.Client, prompt: str, max_retries: int = 2) -> Di
     """
     import re
     
+    model_name = config.get("ai_model", "gemini-2.0-flash")
     for attempt in range(max_retries + 1):
         logger.info(f"🤖 Analyzing issue with Gemini AI (Attempt {attempt + 1}/{max_retries + 1})...")
         try:
             response = client.models.generate_content(
-                model='gemini-2.0-flash',
+                model=model_name,
                 contents=prompt
             )
             result_text = response.text.strip()
@@ -138,7 +119,7 @@ def analyze_issue(client: genai.Client, prompt: str, max_retries: int = 2) -> Di
             # Method 3: Key-by-key extraction (last resort)
             logger.warning("Attempting key-by-key extraction as last resort...")
             # Redact sensitive data before including in fallback
-            safe_prompt = _redact_sensitive_data(prompt[:2000])
+            safe_prompt = redact_sensitive_data(prompt[:2000])
             fallback_data = {
                 'should_proceed': 'true' in result_text.lower() and 'should_proceed' in result_text.lower(),
                 'issue_type': 'code_request' if 'code' in result_text.lower() else 'unclear',
@@ -250,12 +231,13 @@ def main() -> None:
 
         project_root = Path.cwd()
         codebase_context = get_codebase_context(project_root)
+        config = load_config()
         rules = load_rules()
 
         prompt_path = project_root / ".github" / "prompts" / "swarm_analyzer.prompt"
         formatted_prompt = load_and_format_prompt(prompt_path, issue_data, codebase_context, rules)
 
-        analysis_data = analyze_issue(client, formatted_prompt)
+        analysis_data = analyze_issue(client, formatted_prompt, config)
         write_outputs(analysis_data)
 
         should_proceed = analysis_data.get('should_proceed', False)
@@ -268,6 +250,9 @@ def main() -> None:
         sys.exit(1)
     except FileNotFoundError as e:
         logger.error(f"❌ Required file not found: {e}", exc_info=True)
+        sys.exit(1)
+    except ValueError as e:
+        logger.error(f"❌ Configuration error: {e}", exc_info=True)
         sys.exit(1)
     except Exception as e:
         logger.error(f"❌ Unexpected error during analysis: {e}", exc_info=True)
