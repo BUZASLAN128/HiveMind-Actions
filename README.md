@@ -31,9 +31,7 @@ HiveMind operates based on a "constitution" you define in `.github/HIVEMIND_DIRE
 - **Strict Enforcement:** The Gatekeeper agent ruthlessly enforces these rules on every commit and pull request.
 
 ### 3. 🛡️ God Mode (Proactive Engineering)
-HiveMind doesn't wait for issues; it hunts for them.
-- **Nightly Scans:** The swarm can be configured to scan the codebase every night to identify "Refactoring Candidates."
-- **Auto-Generated Tasks:** It autonomously opens issues for performance bottlenecks, tech debt, and potential bugs.
+HiveMind doesn't wait for issues; it hunts for them. It is designed to be proactive, and can be extended with features like nightly scans to autonomously identify refactoring candidates, performance bottlenecks, and potential bugs.
 
 ### 4. ⚡ Competitive Intelligence (Smart Actions)
 - **Smart Ignore:** Automatically skips junk files (`package-lock.json`, `dist/`, `*.min.js`) to save tokens and reduce noise.
@@ -61,8 +59,8 @@ No servers to manage. No Docker containers to host.
 The HiveMind Swarm operates in a sequential, predictable, and centralized manner to ensure stability and prevent redundant operations. Here’s how the agents collaborate:
 
 1.  **🔍 Analyst (`agent-analyst.yml`)**
-    *   **Trigger:** A user with write-access posts a comment containing `@analyst` or `@analyze` on an issue, or a nightly scheduled run.
-    *   **Action:** The Analyst assesses the issue or codebase, gathers context, and creates a detailed implementation plan.
+    *   **Trigger:** A user with write-access posts a comment containing `@analyst` or `@analyze` on an issue.
+    *   **Action:** The Analyst assesses the issue, gathers context, and creates a detailed implementation plan.
     *   **Output:** They trigger the Coder Agent by dispatching a `workflow_dispatch` event.
 
 2.  **🤖 Coder Agent (`agent-coder.yml`)**
@@ -80,7 +78,7 @@ The HiveMind Swarm operates in a sequential, predictable, and centralized manner
 ```mermaid
 graph TD
     subgraph "Step 1: Analysis"
-        A["👤 User posts '@analyze' or<br>🕒 Nightly Schedule"] --> B["[agent-analyst.yml]<br>🔍 Analyst"];
+        A["👤 User posts '@analyze'"] --> B["[agent-analyst.yml]<br>🔍 Analyst"];
     end
     subgraph "Step 2: Coding"
         B -- "Triggers Coder via workflow_dispatch" --> C["[agent-coder.yml]<br>🤖 Coder Agent"];

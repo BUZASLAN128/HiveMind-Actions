@@ -14,7 +14,6 @@ Code quality and test coverage are non-negotiable.
 🤖 HiveMind Protocol (The Workflow)
 **Synchronization:** The "Swarm Status Report" is a live dashboard and must be updated at every step.
 **Triggers:**
-- `schedule`: Scan the code every night and open "Refactoring Candidates" issues.
 - `issue_comment`: React instantly.
 **Agents Structure:**
 - 🔍 **Analyst:** Breaks down requirements into the smallest atomic parts.
