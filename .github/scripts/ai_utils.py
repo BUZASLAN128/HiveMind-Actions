@@ -98,7 +98,7 @@ def redact_sensitive_data(text: str) -> str:
         text = re.sub(pattern, replacement, text)
     return text
 
-def load_rules(filepath: str = '.github/swarm_rules.md') -> str:
+def load_rules(filepath: str = '.github/HIVEMIND_DIRECTIVES.md') -> str:
     """Reads project rules from the configuration file."""
     try:
         return Path(filepath).read_text(encoding="utf-8")
