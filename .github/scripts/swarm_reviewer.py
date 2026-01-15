@@ -31,14 +31,15 @@ def get_diff_content(filepath: str = 'coder_changes.diff') -> str:
         return "No changes found"
 
 
-def format_prompt(prompt_template: str, diff_content: str, issue_title: str, issue_body: str) -> str:
+def format_prompt(prompt_template: str, diff_content: str, rules: str, issue_title: str, issue_body: str) -> str:
     """
-    Formats the prompt template with diff content and issue details.
+    Formats the prompt template with diff content, rules, and issue details.
 
     # FUTURE: Consider using a templating engine like Jinja2 for more complex prompts.
     """
     substitutions = {
         "diff": diff_content,
+        "rules": rules,
         "issue_title": issue_title,
         "issue_body": issue_body
     }
@@ -177,7 +178,8 @@ def main() -> None:
 
         config = load_config()
         prompt_template = load_prompt_template(Path(".github/prompts/swarm_reviewer.prompt"))
-        formatted_prompt = format_prompt(prompt_template, diff_content, issue_title, issue_body)
+        rules = load_rules()
+        formatted_prompt = format_prompt(prompt_template, diff_content, rules, issue_title, issue_body)
 
         review_data = generate_review(client, formatted_prompt, config)
 

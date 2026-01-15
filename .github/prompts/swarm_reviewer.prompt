@@ -14,6 +14,9 @@ ${{ issue_body }}
 ${{ diff }}
 ```
 
+## PROJECT GOLDEN RULES:
+${{ rules }}
+
 ## Checklist:
 - [ ] Compliant with Project Rules?
 - [ ] Type hints present?
