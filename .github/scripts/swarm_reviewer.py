@@ -160,6 +160,12 @@ def main() -> None:
         issue_title = os.getenv('ISSUE_TITLE', 'N/A')
         issue_body = os.getenv('ISSUE_BODY', 'No description provided.')
 
+        # Truncate to prevent exceeding context window
+        if len(issue_title) > 1000:
+            issue_title = issue_title[:1000] + '...'
+        if len(issue_body) > 5000:
+            issue_body = issue_body[:5000] + '...'
+
         config = load_config()
         prompt_template = load_prompt_template(Path(".github/prompts/swarm_reviewer.prompt"))
         rules = load_rules()
