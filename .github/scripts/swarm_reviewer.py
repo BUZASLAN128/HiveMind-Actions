@@ -147,6 +147,10 @@ def main() -> None:
     """
     Main function: reads the diff, creates the prompt, generates review,
     and outputs results.
+
+    # FUTURE: Add more detailed logging to track agent decisions.
+    # FUTURE: Add comprehensive tests for the prompt formatting function.
+    # FUTURE: Add input sanitization to prevent prompt injection.
     """
     try:
         logger.info("▶️ Starting code review process...")

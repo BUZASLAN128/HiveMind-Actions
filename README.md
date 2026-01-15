@@ -12,14 +12,14 @@
 **HiveMind** is not just a bot. It's a **collaborative AI Swarm** that lives inside your GitHub Actions. 
 It enables a team of specialized AI agents to work together, autonomously planning, coding, reviewing, and **evolving the codebase** without your intervention.
 
-Think of it as having a **full engineering team**—including an Analyst and a ruthless Gatekeeper—working 24/7 on your repo, for free.
+Think of it as having a **full engineering team**—including an Analyst and a ruthless Reviewer—working 24/7 on your repo, for free.
 
 ---
 
 ## 🔥 Why HiveMind? (Killer Features)
 
 ### 1. ♾️ Autonomous Self-Correction & Evolution
-The most powerful feature. If the **Gatekeeper** (Reviewer) finds a flaw:
+The most powerful feature. If the **Reviewer** finds a flaw:
 1. It **REJECTS** the PR with actionable feedback.
 2. It triggers the **Coder** to fix its own mistakes.
 3. This loop continues until the code meets the **9/10 Quality Standard**.
@@ -28,7 +28,7 @@ The most powerful feature. If the **Gatekeeper** (Reviewer) finds a flaw:
 ### 2. 📜 Constitutional AI (HIVEMIND_DIRECTIVES.md)
 HiveMind operates based on a "constitution" you define in `.github/HIVEMIND_DIRECTIVES.md`.
 - **Your Rules, Their Law:** Define architectural principles, coding standards, and performance metrics.
-- **Strict Enforcement:** The Gatekeeper agent ruthlessly enforces these rules on every commit and pull request.
+- **Strict Enforcement:** The Reviewer agent ruthlessly enforces these rules on every commit and pull request.
 
 ### 3. 🛡️ God Mode (Proactive Engineering)
 HiveMind doesn't wait for issues; it hunts for them. It is designed to be proactive, and can be extended with features like nightly scans to autonomously identify refactoring candidates, performance bottlenecks, and potential bugs.
@@ -52,7 +52,7 @@ No servers to manage. No Docker containers to host.
 |---|---|---|---|
 | **Analyst** | 🔍 | Architect | Breaks down complex issues into the smallest atomic steps. |
 | **Coder** | 🤖 | Executor | Writes pristine code, tests, and documentation. |
-| **Gatekeeper**| 🛡️ | Quality Control | Ruthlessly rejects any PR that fails to meet the 9/10 standard. |
+| **Reviewer**| 🛡️ | Quality Control | Ruthlessly rejects any PR that fails to meet the 9/10 standard. |
 
 ### 🔄 The HiveMind Workflow: How Agents are Triggered
 
@@ -68,12 +68,12 @@ The HiveMind Swarm operates in a sequential, predictable, and centralized manner
     *   **Action:** The Coder executes the plan, writes code, runs tests, and opens a pull request.
     *   **Output:** A pull request ready for review.
 
-3.  **🛡️ Gatekeeper (`agent-reviewer.yml`)**
+3.  **🛡️ Reviewer (`agent-reviewer.yml`)**
     *   **Trigger:** A pull request is `opened`, `synchronize`d (a new commit is pushed), or marked `ready_for_review`.
-    *   **Action:** The Gatekeeper inspects the code changes against the project's directives (`HIVEMIND_DIRECTIVES.md`).
+    *   **Action:** The Reviewer inspects the code changes against the project's directives (`HIVEMIND_DIRECTIVES.md`).
     *   **Output:**
         *   **If Approved:** The pull request is approved and can be merged.
-        *   **If Rejected:** The Gatekeeper initiates the **Self-Correction Loop**, sending feedback directly to the Coder Agent to fix the issues automatically.
+        *   **If Rejected:** The Reviewer initiates the **Self-Correction Loop**, sending feedback directly to the Coder Agent to fix the issues automatically.
 
 ```mermaid
 graph TD
@@ -85,9 +85,9 @@ graph TD
         C -- "Opens a Pull Request" --> D;
     end
     subgraph "Step 3: Review & Self-Correction"
-        D["[agent-reviewer.yml]<br>🛡️ Gatekeeper (Reviewer)"] -- "Inspects PR" --> E{"Verdict?"};
+        D["[agent-reviewer.yml]<br>🛡️ Reviewer"] -- "Inspects PR" --> E{"Verdict?"};
         E -- "✅ Approved (Score >= 9/10 & No Issues)" --> F["PR Merged"];
-        E -- "❌ Rejected" --> G["Self-Correction Loop<br>(Gatekeeper tells Coder to fix it)"];
+        E -- "❌ Rejected" --> G["Self-Correction Loop<br>(Reviewer tells Coder to fix it)"];
         G --> C;
     end
 ```
@@ -139,7 +139,7 @@ Use your own App Name and Logo (e.g., `EnesBot`).
 ## 🤝 Contributing & Support
 We love community contributions!
 - See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-- **Rules:** All PRs must pass the AI Gatekeeper's checks.
+- **Rules:** All PRs must pass the AI Reviewer's checks.
 - **Contact:** [buzaslan.ea@gmail.com](mailto:buzaslan.ea@gmail.com)
 
 ---
