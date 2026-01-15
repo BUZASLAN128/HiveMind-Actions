@@ -25,8 +25,8 @@ The most powerful feature. If the **Reviewer** finds a flaw:
 3. This loop continues until the code meets the **9/10 Quality Standard**.
 4. The swarm also proactively seeks to improve and refactor the code.
 
-### 2. 📜 Constitutional AI (HIVEMIND_DIRECTIVES.md)
-HiveMind operates based on a "constitution" you define in `.github/HIVEMIND_DIRECTIVES.md`.
+### 2. 📜 Constitutional AI (swarm_rules.md)
+HiveMind operates based on a "constitution" you define in `.github/swarm_rules.md`.
 - **Your Rules, Their Law:** Define architectural principles, coding standards, and performance metrics.
 - **Strict Enforcement:** The Reviewer agent ruthlessly enforces these rules on every commit and pull request.
 
@@ -70,7 +70,7 @@ The HiveMind Swarm operates in a sequential, predictable, and centralized manner
 
 3.  **🛡️ Reviewer (`agent-reviewer.yml`)**
     *   **Trigger:** A pull request is `opened`, `synchronize`d (a new commit is pushed), or marked `ready_for_review`.
-    *   **Action:** The Reviewer inspects the code changes against the project's directives (`HIVEMIND_DIRECTIVES.md`).
+    *   **Action:** The Reviewer inspects the code changes against the project's directives (`swarm_rules.md`).
     *   **Output:**
         *   **If Approved:** The pull request is approved and can be merged.
         *   **If Rejected:** The Reviewer initiates the **Self-Correction Loop**, sending feedback directly to the Coder Agent to fix the issues automatically.
@@ -102,7 +102,7 @@ Copy these folders and files to your repository:
 .github/workflows/
 .github/scripts/
 .github/prompts/
-.github/HIVEMIND_DIRECTIVES.md
+.github/swarm_rules.md
 ```
 
 ### Step 2: Add Secrets
@@ -111,7 +111,7 @@ Go to **Settings > Secrets and variables > Actions** and add:
 - `JULES_API_KEY`: API Key for the Coder Agent trigger.
 
 ### Step 3: Define Your Constitution
-Edit `.github/HIVEMIND_DIRECTIVES.md` to set your project's rules and standards.
+Edit `.github/swarm_rules.md` to set your project's rules and standards.
 
 ---
 
