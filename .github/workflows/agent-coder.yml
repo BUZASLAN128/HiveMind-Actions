@@ -7,6 +7,9 @@
 name: '🤖 Agent: Coder (Gemini)'
 
 on:
+  # This workflow is triggered exclusively by the Analyst agent via `workflow_dispatch`.
+  # Manual triggers (`issue_comment`, `issues`) have been removed to prevent redundant
+  # runs and establish a clear, centralized control flow (Analyst -> Coder).
   # Direct trigger from Analyst workflow (works with GITHUB_TOKEN!)
   workflow_dispatch:
     inputs:
