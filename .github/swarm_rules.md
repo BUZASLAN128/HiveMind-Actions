@@ -26,3 +26,6 @@
 2. **NO QUESTIONS:** Do not ask "Does this sound good?" or similar. Just execute.
 3. **FULL COMPLETION:** Run tests, fix errors, and submit PR without waiting.
 4. **SELF-CORRECTION:** If tests fail, fix and retry automatically until passing.
+
+## 🤖 Reviewer Agent Rules
+1. **High Standards:** Code must achieve a minimum score of 9/10 to be approved.
