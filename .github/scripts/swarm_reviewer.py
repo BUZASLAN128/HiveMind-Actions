@@ -34,6 +34,8 @@ def get_diff_content(filepath: str = 'coder_changes.diff') -> str:
 def format_prompt(prompt_template: str, diff_content: str, rules: str, issue_title: str, issue_body: str) -> str:
     """
     Formats the prompt template with diff content, rules, and issue details.
+
+    # FUTURE: Consider using a templating engine like Jinja2 for more complex prompts.
     """
     prompt = prompt_template.replace("${{ diff }}", diff_content)
     prompt = prompt.replace("${{ rules }}", rules)
@@ -161,6 +163,7 @@ def main() -> None:
         issue_body = os.getenv('ISSUE_BODY', 'No description provided.')
 
         # Truncate to prevent exceeding context window
+        # FUTURE: Implement a more sophisticated summarization method to preserve key information.
         if len(issue_title) > 1000:
             issue_title = issue_title[:1000] + '...'
         if len(issue_body) > 5000:
@@ -173,8 +176,9 @@ def main() -> None:
 
         review_data = generate_review(client, formatted_prompt, config)
 
-        # Decision mechanism: Both 'approved' and 'project_compliance' must be true
-        approved = review_data.get('approved', False) and review_data.get('project_compliance', False)
+        # Decision mechanism: Score must be 9+ and project_compliance must be true.
+        score = review_data.get('score', 0)
+        approved = review_data.get('project_compliance', False) and score >= 9
 
         comment = format_review_comment(review_data)
         labels = review_data.get('labels', [])
