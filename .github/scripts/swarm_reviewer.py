@@ -31,11 +31,15 @@ def get_diff_content(filepath: str = 'coder_changes.diff') -> str:
         return "No changes found"
 
 
-def format_prompt(prompt_template: str, diff_content: str, rules: str) -> str:
+def format_prompt(prompt_template: str, diff_content: str, rules: str, issue_title: str, issue_body: str) -> str:
     """
-    Formats the prompt template with diff content and rules.
+    Formats the prompt template with diff content, rules, and issue details.
     """
-    return prompt_template.replace("${{ diff }}", diff_content).replace("${{ rules }}", rules)
+    prompt = prompt_template.replace("${{ diff }}", diff_content)
+    prompt = prompt.replace("${{ rules }}", rules)
+    prompt = prompt.replace("${{ issue_title }}", issue_title)
+    prompt = prompt.replace("${{ issue_body }}", issue_body)
+    return prompt
 
 def generate_review(client: genai.Client, prompt: str, config: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -152,10 +156,14 @@ def main() -> None:
             write_outputs(approved=False, comment="No changes found to review.")
             return
 
+        # Fetch issue details from environment variables
+        issue_title = os.getenv('ISSUE_TITLE', 'N/A')
+        issue_body = os.getenv('ISSUE_BODY', 'No description provided.')
+
         config = load_config()
         prompt_template = load_prompt_template(Path(".github/prompts/swarm_reviewer.prompt"))
         rules = load_rules()
-        formatted_prompt = format_prompt(prompt_template, diff_content, rules)
+        formatted_prompt = format_prompt(prompt_template, diff_content, rules, issue_title, issue_body)
 
         review_data = generate_review(client, formatted_prompt, config)
 

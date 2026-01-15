@@ -234,10 +234,46 @@ jobs:
             echo "RULES=No specific rules found." >> $GITHUB_ENV
           fi
 
+      - name: Fetch Issue Details (PR Only)
+        if: github.event_name == 'pull_request'
+        id: fetch-issue
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const prBody = context.payload.pull_request.body || '';
+            const issueMatch = prBody.match(/Fixes #(\d+)/) || prBody.match(/#(\d+)/);
+            const issueNumber = issueMatch ? parseInt(issueMatch[1]) : null;
+
+            let issueTitle = '';
+            let issueBody = '';
+
+            if (issueNumber) {
+              try {
+                console.log(`Fetching details for issue #${issueNumber}...`);
+                const issue = await github.rest.issues.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                });
+                issueTitle = issue.data.title;
+                issueBody = issue.data.body;
+                console.log(`✅ Found issue: ${issueTitle}`);
+              } catch (error) {
+                console.log(`⚠️ Could not fetch issue #${issueNumber}. Error: ${error.message}`);
+              }
+            } else {
+              console.log("No associated issue found in PR body.");
+            }
+
+            core.exportVariable('ISSUE_TITLE', issueTitle);
+            core.exportVariable('ISSUE_BODY', issueBody);
+
       - name: Run Gemini Review
         id: review
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ISSUE_TITLE: ${{ env.ISSUE_TITLE }}
+          ISSUE_BODY: ${{ env.ISSUE_BODY }}
         run: |
           # Run swarm_reviewer.py script
           # Script will read coder_changes.diff and create review_comment.md
