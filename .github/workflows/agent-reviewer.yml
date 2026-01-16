@@ -408,10 +408,129 @@ jobs:
                 });
               }
 
+      - name: Load Config
+        id: config
+        run: |
+          if [ -f .github/config.json ]; then
+            echo "MAX_RETRIES=$(jq -r .max_retries .github/config.json)" >> $GITHUB_OUTPUT
+          else
+            echo "MAX_RETRIES=5" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post Review (PR Mode)
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v8
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+          MAX_RETRIES: ${{ steps.config.outputs.MAX_RETRIES }}
+        with:
+          github-token: ${{ steps.set-token.outputs.token }}
+          script: |
+            const fs = require('fs');
+
+            // Read review result
+            let reviewText = '';
+            try {
+              reviewText = fs.readFileSync('review_comment.md', 'utf8');
+            } catch (e) {
+              reviewText = 'Review result could not be read or script failed.';
+            }
+
+            // Verify approval from script output (from steps/env)
+            // Using steps.review.outputs.approved
+
+            // swarm_reviewer.py GITHUB_OUTPUT'a approved yazıyor, bunu steps objesinden alacağız.
+            const approved = '${{ steps.review.outputs.approved }}' === 'true';
+            const verdict = approved ? '✅ APPROVED' : '❌ REJECTED';
+
+            // PR'a review yaz
+            if (reviewText.length > 10) {
+                await github.rest.pulls.createReview({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: context.payload.pull_request.number,
+                  event: approved ? 'APPROVE' : 'REQUEST_CHANGES',
+                  body: `## 🔎 Gemini Code Review
+
+                  ${reviewText}
+
+                  ---
+
+                  **Verdict:** ${verdict}
+
+                  ${approved ? '> This PR is ready to merge.' : '> Please fix the issues mentioned above.'}`
+                });
+                // Note: Jules is triggered via REST API in the self-correction loop below
+            }
+
+            // Update associated issue
+            const prBody = context.payload.pull_request.body || '';
+            const issueMatch = prBody.match(/Fixes #(\d+)/) || prBody.match(/#(\d+)/);
+            const issueNumber = issueMatch ? parseInt(issueMatch[1]) : null;
+
+            if (issueNumber) {
+              const marker = '<!-- SWARM_STATUS_REPORT -->';
+
+              const table = [
+                '| Agent | Status | Task |',
+                '|-------|--------|------|',
+                '| 🔍 Analyst | ✅ **COMPLETED** | Issue Analysis |',
+                '| 🤖 Coder | ✅ **COMPLETED** | Implementation |',
+                '| 🔎 Reviewer | ✅ **COMPLETED** | PR Review |'
+              ].join('\n');
+
+              const taskList = [
+                '### 📝 Task List',
+                '- [x] Issue Analysis (Analyst)',
+                '- [x] Code Changes (Coder)',
+                '- [x] Create PR (Coder)',
+                '- [x] PR Review (Reviewer)'
+              ].join('\n');
+
+              const header = `## 🐝 HiveMind Status Report ${marker}`;
+              const body = `${header}\n\n${table}\n\n${taskList}\n\n---\n\n**Verdict:** ${verdict}\n\n🔗 [PR #${context.payload.pull_request.number}](${context.payload.pull_request.html_url})\n\n${approved ? '> ✅ **Ready to Merge!** Review passed.' : '> ⚠️ **Changes Needed.** Please address the issues.'}`;
+
+              // Search for existing status comment by marker
+              const comments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                per_page: 50,
+                sort: 'created',
+                direction: 'desc'
+              });
+              const statusComment = comments.data.find(c => c.body.includes(marker));
+
+              if (statusComment) {
+                try {
+                  await github.rest.issues.updateComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: statusComment.id,
+                    body: body
+                  });
+                } catch (e) {
+                  console.log(`⚠️ Comment update failed, creating new one.`);
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issueNumber,
+                    body: body
+                  });
+                }
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: body
+                });
+              }
+
               // 🔄 SELF-CORRECTION LOOP (Strictly within !approved)
               if (!approved) {
                 console.log("Executing self-correction logic...");
-                const MAX_RETRIES = 5;
+                const MAX_RETRIES = parseInt(process.env.MAX_RETRIES) || 5;
                 const prNumber = context.payload.pull_request.number;
 
                 // Detailed logging for review text check

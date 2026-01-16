@@ -1,3 +1,5 @@
 {
-  "ai_model": "gemini-2.0-flash"
+  "ai_model": "gemini-1.5-flash",
+  "min_review_score": 8,
+  "max_retries": 5
 }
