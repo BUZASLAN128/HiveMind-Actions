@@ -223,6 +223,7 @@ jobs:
 
               // 🔄 SELF-CORRECTION LOOP: Trigger Jules (Google Labs) via REST API
               if (!approved) {
+                  console.log('[DEBUG] Entering self-correction loop because approved is false.');
                   const MAX_RETRIES = 5;
 
                   if (!reviewText || reviewText.trim().length < 10) {
@@ -484,6 +485,7 @@ jobs:
 
             // swarm_reviewer.py GITHUB_OUTPUT'a approved yazıyor, bunu steps objesinden alacağız.
             const approved = '${{ steps.review.outputs.approved }}' === 'true';
+            console.log(`[DEBUG] The value of approved is: ${approved}`);
             const verdict = approved ? '✅ APPROVED' : '❌ REJECTED';
 
             // PR'a review yaz
