@@ -234,10 +234,47 @@ jobs:
             echo "RULES=No specific rules found." >> $GITHUB_ENV
           fi
 
+      - name: Fetch Issue Context (PR Only)
+        id: issue-context
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ steps.set-token.outputs.token }}
+          script: |
+            const prBody = context.payload.pull_request.body || '';
+            const issueMatch = prBody.match(/Fixes #(\d+)/);
+            if (!issueMatch) {
+              console.log('No issue number found in PR body.');
+              core.exportVariable('ISSUE_TITLE', 'N/A');
+              core.exportVariable('ISSUE_BODY', 'N/A');
+              return;
+            }
+
+            const issueNumber = parseInt(issueMatch[1]);
+            console.log(`Found issue number: ${issueNumber}`);
+
+            try {
+              const { data: issue } = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+              });
+
+              console.log(`Successfully fetched issue title: ${issue.title}`);
+              core.exportVariable('ISSUE_TITLE', issue.title);
+              core.exportVariable('ISSUE_BODY', issue.body || 'No issue body provided.');
+            } catch (error) {
+              console.error(`Failed to fetch issue #${issueNumber}:`, error);
+              core.exportVariable('ISSUE_TITLE', 'Error fetching title');
+              core.exportVariable('ISSUE_BODY', `Could not fetch issue content: ${error.message}`);
+            }
+
       - name: Run Gemini Review
         id: review
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ISSUE_TITLE: ${{ env.ISSUE_TITLE }}
+          ISSUE_BODY: ${{ env.ISSUE_BODY }}
         run: |
           # Run swarm_reviewer.py script
           # Script will read coder_changes.diff and create review_comment.md
@@ -371,167 +408,93 @@ jobs:
                 });
               }
 
-              // 🔄 SELF-CORRECTION LOOP: Trigger Jules (Google Labs) via REST API
+              // 🔄 SELF-CORRECTION LOOP (Strictly within !approved)
               if (!approved) {
-                  const MAX_RETRIES = 5;
-                  
-                  if (!reviewText || reviewText.trim().length < 10) {
-                      console.log('⚠️ Review text is too short or empty. Skipping self-correction.');
-                      return;
-                  }
+                console.log("Executing self-correction logic...");
+                const MAX_RETRIES = 5;
+                const prNumber = context.payload.pull_request.number;
 
-                  // 1. Find existing session ID from PR comments (not Issue)
-                  const prNumber = context.payload.pull_request.number;
-                  const comments = await github.rest.issues.listComments({
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      issue_number: prNumber,  // Search PR comments for session ID
-                      per_page: 100
+                // Detailed logging for review text check
+                if (!reviewText || reviewText.trim().length < 10) {
+                  console.log('❌ Self-correction skipped: Review text is too short or empty.');
+                  return;
+                }
+
+                // Find Session ID from PR comments (for continuity)
+                const { data: comments } = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  per_page: 100
+                });
+
+                const autoTriggers = comments.filter(c => c.body.includes('Reviewer Feedback (Automatic Trigger)')).length;
+                console.log(`Found ${autoTriggers} previous auto-triggers.`);
+
+                if (autoTriggers >= MAX_RETRIES) {
+                  console.log(`⚠️ Max retries (${MAX_RETRIES}) reached. Halting self-correction.`);
+                  // Notify user about retry limit
+                  const { data: issue } = await github.rest.issues.get({ owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNumber });
+                  const stopBody = `🛑 **Self-Correction Halted**\n\nRejected ${MAX_RETRIES} times. @${issue.user.login}, please review manually.`;
+                  await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNumber, body: stopBody });
+                  return;
+                }
+
+                // Session ID Search (PR Body & Comments)
+                let sessionId = (context.payload.pull_request.body || '').match(/for task \[?(\d+)\]?/)?.[1];
+                if (sessionId) {
+                  console.log(`✅ Session ID found in PR body: ${sessionId}`);
+                } else {
+                  for (const c of comments) {
+                    const match = c.body.match(/<!-- JULES_SESSION_ID: (.+?) -->/) || c.body.match(/for task \[?(\d+)\]?/);
+                    if (match) {
+                      sessionId = match[1];
+                      console.log(`✅ Session ID found in comments: ${sessionId}`);
+                      break;
+                    }
+                  }
+                }
+
+                if (!sessionId) {
+                  console.log('❌ Self-correction failed: No Jules session ID found in PR body or comments.');
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber,
+                    body: `⚠️ **Session Continuity Failed**\nCould not find a valid Jules session ID.`
                   });
-                  
-                  const autoTriggers = comments.data.filter(c => c.body.includes('Reviewer Feedback (Automatic Trigger)')).length;
-                  
-                  // Find Session ID - check multiple sources:
-                  // 1. PR body (Jules writes "for task X" in description)
-                  // 2. Comments: My format <!-- JULES_SESSION_ID: 123 -->
-                  // 3. Comments: Jules' format "for task 123"
-                  let limitReached = autoTriggers >= MAX_RETRIES;
-                  let sessionId = null;
+                  return;
+                }
 
-                  // FIRST: Check PR BODY for Jules task ID
-                  const prBody = context.payload.pull_request.body || '';
-                  console.log('📋 PR Body length: ' + prBody.length);
-                  // Handle both plain text and markdown link: "for task 123" or "for task [123](url)"
-                  const prBodyMatch = prBody.match(/for task \[?(\d+)\]?/);
-                  if (prBodyMatch) {
-                      sessionId = prBodyMatch[1];
-                      console.log('🔗 Found Session ID in PR BODY: ' + sessionId);
+                const apiKey = process.env.JULES_API_KEY;
+                if (!apiKey) {
+                  console.log('❌ Self-correction failed: JULES_API_KEY is not set.');
+                  await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNumber, body: '⚠️ **Self-Correction Failed**: `JULES_API_KEY` is missing.' });
+                  return;
+                }
+
+                // Trigger Jules API
+                try {
+                  console.log(`Attempting to send feedback to Jules session ${sessionId} (Attempt ${autoTriggers + 1}/${MAX_RETRIES}).`);
+                  const response = await fetch(`https://jules.googleapis.com/v1alpha/sessions/${sessionId}:sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey },
+                    body: JSON.stringify({ prompt: `Reviewer Feedback:\n\n${reviewText}\n\nPlease fix these issues.` })
+                  });
+
+                  if (!response.ok) {
+                    throw new Error(`Jules API Error (${response.status}): ${await response.text()}`);
                   }
 
-                  // If not in body, check comments
-                  if (!sessionId) {
-                      for (const c of comments.data) {
-                          // Pattern 1: My hidden comment
-                          const myMatch = c.body.match(/<!-- JULES_SESSION_ID: (.+?) -->/);
-                          if (myMatch) {
-                              sessionId = myMatch[1];
-                              console.log('🔗 Found Session ID (my format): ' + sessionId);
-                              break;
-                          }
-                          // Pattern 2: Jules' native format in comment
-                          const julesMatch = c.body.match(/for task \[?(\d+)\]?/);
-                          if (julesMatch) {
-                              sessionId = julesMatch[1];
-                              console.log('🔗 Found Session ID (Jules format in comment): ' + sessionId);
-                              break;
-                          }
-                      }
-                  }
-                  
-                  if (!sessionId) {
-                      console.log('❌ No Session ID found in PR body or comments!');
-                  } else {
-                      console.log('✅ Session ID to use: ' + sessionId);
-                  }
+                  console.log('✅ Feedback successfully sent to Jules.');
+                  const confirmBody = `🤖 **Jules Triggered**\nFeedback sent for self-correction.\n*Session ID:* \`${sessionId}\`\n*Loop:* ${autoTriggers + 1}/${MAX_RETRIES}\n<!-- JULES_SESSION_ID: ${sessionId} -->\n<!-- Reviewer Feedback (Automatic Trigger) -->`;
+                  await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber, body: confirmBody });
 
-                  if (limitReached) {
-                      console.log('⚠️ Max retries (' + MAX_RETRIES + ') reached. Stopping self-correction loop.');
-                      const issueDetails = await github.rest.issues.get({
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          issue_number: issueNumber
-                      });
-                      const issueAuthor = issueDetails.data.user.login;
-                      
-                      const stopBody = '🛑 **Self-Correction Stopped**\n\n' +
-                          'Result: Rejected ' + MAX_RETRIES + ' times.\n' +
-                          '@' + issueAuthor + ' please check manually.\n' +
-                          '<!-- JULES_SESSION_ID: ' + (sessionId || 'none') + ' -->';
-
-                      await github.rest.issues.createComment({
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          issue_number: issueNumber,
-                          body: stopBody
-                      });
-                      return;
-                  }
-
-                  console.log('🔄 Triggering Jules API (Attempt ' + (autoTriggers + 1) + '/' + MAX_RETRIES + ')...');
-                  
-                  // Prepare Payload
-                  const apiKey = process.env.JULES_API_KEY;
-                  if (!apiKey) {
-                      console.log('❌ Error: JULES_API_KEY environment variable is not set. Cannot trigger self-correction.');
-                      await github.rest.issues.createComment({
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          issue_number: issueNumber,
-                          body: '⚠️ **Self-Correction Failed**: `JULES_API_KEY` is missing.'
-                      });
-                      return;
-                  }
-                  
-                  // Usage of fetch (Node 18+)
-                  try {
-                      let julesResp;
-                      if (sessionId) {
-                          // CONTINUE EXISTING SESSION
-                          console.log('📨 Sending feedback to Session ' + sessionId + '...');
-                          const response = await fetch('https://jules.googleapis.com/v1alpha/sessions/' + sessionId + ':sendMessage', {
-                              method: 'POST',
-                              headers: {
-                                  'Content-Type': 'application/json',
-                                  'X-Goog-Api-Key': apiKey
-                              },
-                              body: JSON.stringify({ prompt: 'Reviewer Feedback:\n\n' + reviewText + '\n\nPlease fix these issues.' })
-                          });
-
-                          if (!response.ok) {
-                              const errorText = await response.text();
-                              throw new Error('Jules API Error (' + response.status + '): ' + errorText);
-                          }
-
-                          julesResp = await response.json();
-                          console.log('✅ Feedback sent to Jules session.');
-                      } else {
-                          // NO SESSION FOUND - STOP (no fallback)
-                          console.log('❌ No Jules Session ID found! Cannot continue session.');
-                          console.log('📋 Checked PR body and comments for patterns: for task X, JULES_SESSION_ID');
-                          await github.rest.issues.createComment({
-                              owner: context.repo.owner,
-                              repo: context.repo.repo,
-                              issue_number: prNumber,
-                              body: '⚠️ **Session Continuity Failed**\n\nCould not find existing Jules session ID in PR body or comments.\n\n**Debug Info:**\n- PR Body checked: Yes\n- Comments checked: Yes\n- Patterns: `for task X`, `<!-- JULES_SESSION_ID: -->`\n\nPlease trigger Jules manually.'
-                          });
-                          return;
-                      }
-
-                      // Post confirmation comment WITH Session ID for next run
-                      const confirmBody = '🤖 **Jules Triggered (REST API)**\n\n' +
-                          'I have communicated the feedback to Jules.\n' +
-                          '**Session ID:** `' + sessionId + '`\n\n' +
-                          '> Loop: ' + (autoTriggers + 1) + '/' + MAX_RETRIES + '\n\n' +
-                          '<!-- JULES_SESSION_ID: ' + sessionId + ' -->\n' +
-                          '<!-- Reviewer Feedback (Automatic Trigger) -->';
-
-                      // Post to PR only (for session continuity)
-                      await github.rest.issues.createComment({
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          issue_number: prNumber,
-                          body: confirmBody
-                      });
-                      
-                  } catch (apiError) {
-                      console.error('❌ Jules REST API Failed:', apiError);
-                      await github.rest.issues.createComment({
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          issue_number: issueNumber,
-                          body: '⚠️ **Self-Correction Failed** during API call.\n\nError: ' + apiError.message
-                      });
-                  }
+                } catch (apiError) {
+                  console.error(`❌ Jules API call failed: ${apiError.message}`);
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNumber,
+                    body: `⚠️ **Self-Correction API Failed**\nError: ${apiError.message}`
+                  });
+                }
               }
             }
       - name: Post Review (Beast Mode - Push)

@@ -33,9 +33,16 @@ def get_diff_content(filepath: str = 'coder_changes.diff') -> str:
 
 def format_prompt(prompt_template: str, diff_content: str, rules: str) -> str:
     """
-    Formats the prompt template with diff content and rules.
+    Formats the prompt template with diff content, rules, and issue context.
     """
-    return prompt_template.replace("${{ diff }}", diff_content).replace("${{ rules }}", rules)
+    issue_title = os.getenv('ISSUE_TITLE', 'N/A')
+    issue_body = os.getenv('ISSUE_BODY', 'No description provided.')
+
+    return (prompt_template
+            .replace("${{ diff }}", diff_content)
+            .replace("${{ rules }}", rules)
+            .replace("${{ issue_title }}", issue_title)
+            .replace("${{ issue_body }}", issue_body))
 
 def generate_review(client: genai.Client, prompt: str, config: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -62,27 +69,52 @@ def generate_review(client: genai.Client, prompt: str, config: Dict[str, Any]) -
 
     logger.debug(f"Raw AI Response:\n{result_text}")
 
-    # JSON bloğunu güvenli bir şekilde çıkar
+    # Robust JSON parsing
     try:
-        if '```json' in result_text:
-            json_part = result_text.split('```json')[1].split('```')[0]
-        elif '```' in result_text:
-            json_part = result_text.split('```')[1].split('```')[0]
-        else:
-            json_part = result_text
-        data = json.loads(json_part.strip())
+        # Find the start and end of the JSON block, even with markdown wrappers
+        json_start = result_text.find('{')
+        json_end = result_text.rfind('}') + 1
         
-        # Defensive: Ensure required keys exist to prevent crashes
-        required_keys = ['approved', 'score', 'verdict', 'project_compliance', 'security_ok']
-        for key in required_keys:
-            if key not in data:
-                logger.warning(f"⚠️ Missing key '{key}' in AI response. Injecting default.")
-                data[key] = False if any(x in key for x in ['approved', 'compliance', 'ok']) else "N/A"
+        if json_start == -1 or json_end == 0:
+            raise json.JSONDecodeError("No JSON object found in the response.", result_text, 0)
+
+        json_part = result_text[json_start:json_end]
+        data = json.loads(json_part)
         
+        # Defensive check for required keys
+        required_keys = ['score', 'issues']
+        if not all(key in data for key in required_keys):
+            raise KeyError(f"Missing one or more required keys in JSON response: {required_keys}")
+
         return data
-    except (IndexError, json.JSONDecodeError) as e:
-        logger.error(f"Could not parse JSON from AI response: {e}\nResponse: {result_text}")
-        raise
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON response from AI. Error: {e}\nRaw Response:\n{result_text}")
+        # Return a default error structure to prevent workflow crash
+        return {
+            "approved": False,
+            "score": 0,
+            "issues": [f"Failed to parse AI response: {e}"],
+            "positives": [],
+            "suggestions": [],
+            "project_compliance": False,
+            "security_ok": False,
+            "verdict": "REJECTED (Parsing Error)",
+            "labels": ["bug", "review-failed"]
+        }
+    except KeyError as e:
+        logger.error(f"Missing required key in AI response. Error: {e}\nRaw Response:\n{result_text}")
+        # Return a default error structure to prevent workflow crash
+        return {
+            "approved": False,
+            "score": 0,
+            "issues": [f"AI response was missing a required key: {e}"],
+            "positives": [],
+            "suggestions": [],
+            "project_compliance": False,
+            "security_ok": False,
+            "verdict": "REJECTED (Missing Key)",
+            "labels": ["bug", "review-failed"]
+        }
 
 def format_review_comment(data: Dict[str, Any]) -> str:
     """
@@ -159,8 +191,13 @@ def main() -> None:
 
         review_data = generate_review(client, formatted_prompt, config)
 
-        # Decision mechanism: Both 'approved' and 'project_compliance' must be true
-        approved = review_data.get('approved', False) and review_data.get('project_compliance', False)
+        # Stricter decision mechanism
+        min_score = config.get("min_review_score", 8)
+        score = review_data.get("score", 0)
+        issues_found = len(review_data.get("issues", []))
+
+        # Approval requires a score >= min_score AND zero issues.
+        approved = score >= min_score and issues_found == 0
 
         comment = format_review_comment(review_data)
         labels = review_data.get('labels', [])
