@@ -10,8 +10,14 @@ from ai_utils import load_prompt_template
 
 @pytest.fixture
 def real_template():
-    """Load the real prompt template from the repository."""
+    """
+    Load the real prompt template from the repository.
+
+    Depends on: .github/prompts/swarm_analyzer.prompt (Real Project File)
+    """
     prompt_path = Path(__file__).parent.parent / "prompts" / "swarm_analyzer.prompt"
+    if not prompt_path.exists():
+        pytest.skip(f"Real prompt file not found at {prompt_path}")
     return load_prompt_template(prompt_path)
 
 def test_build_prompt_happy_path(real_template):

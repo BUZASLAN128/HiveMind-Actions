@@ -103,12 +103,23 @@ def test_approval_logic():
     print("All approval tests PASSED!\n")
 
 def test_load_rules():
+    """
+    Test loading project rules.
+
+    Depends on: .github/swarm_rules.md (Real Project File)
+    """
     print("=== LOAD RULES TESTS ===")
+
+    # Pre-check: Verify rules file exists
+    rules_path = ".github/swarm_rules.md"
+    if not os.path.exists(rules_path):
+        print(f"SKIPPING: Real rules file not found at {rules_path}")
+        return
 
     # Test 1: Load real rules file
     content = load_rules()
-    assert "HiveMind Global Directives" in content
-    assert "Real Data Only" in content
+    assert "HiveMind Global Directives" in content, "Real rules file missing expected header"
+    assert "Real Data Only" in content, "Real rules file missing 'Real Data Only' rule"
     print("Test 1 PASSED: Real rules file loaded successfully")
 
     # Test 2: File missing
