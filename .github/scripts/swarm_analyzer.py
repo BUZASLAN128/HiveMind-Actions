@@ -24,8 +24,18 @@ from ai_utils import (
     logger
 )
 
+# Configuration Constants
+DEFAULT_EXTENSIONS = {'.py', '.js', '.ts', '.jsx', '.tsx', '.go', '.rs', '.java'}
+DEFAULT_PRIORITY_DIRS = ['app', 'src', 'lib', 'core']
 
-def get_codebase_context(root_dir: Path, max_files: int = 20, max_len: int = 2000) -> str:
+
+def get_codebase_context(
+    root_dir: Path,
+    max_files: int = 20,
+    max_len: int = 2000,
+    extensions: set = None,
+    priority_dirs: list = None
+) -> str:
     """
     Collects codebase context by reading source files in the project root.
 
@@ -33,6 +43,8 @@ def get_codebase_context(root_dir: Path, max_files: int = 20, max_len: int = 200
         root_dir: Project root directory.
         max_files: Maximum number of files to read.
         max_len: Maximum character length per file.
+        extensions: Set of file extensions to scan.
+        priority_dirs: List of directories to prioritize.
 
     Returns:
         String containing the codebase context.
@@ -41,11 +53,9 @@ def get_codebase_context(root_dir: Path, max_files: int = 20, max_len: int = 200
     context_parts = []
     total_files = 0
     
-    # File extensions to scan
-    extensions = {'.py', '.js', '.ts', '.jsx', '.tsx', '.go', '.rs', '.java'}
-    
-    # Directories to prioritize
-    priority_dirs = ['app', 'src', 'lib', 'core']
+    # Use defaults if not provided
+    extensions = extensions or DEFAULT_EXTENSIONS
+    priority_dirs = priority_dirs or DEFAULT_PRIORITY_DIRS
     
     # Scan priority directories first
     for priority in priority_dirs:
