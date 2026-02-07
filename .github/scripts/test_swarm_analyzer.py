@@ -6,22 +6,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from swarm_analyzer import build_prompt
+from ai_utils import load_prompt_template
 
 @pytest.fixture
-def sample_template():
-    return """
-Issue Number: {issue_number}
-Title: {issue_title}
-Body: {issue_body}
-Comment: {comment}
-Context:
-{codebase}
-Rules:
-{rules}
-"""
+def real_template():
+    """Load the real prompt template from the repository."""
+    prompt_path = Path(__file__).parent.parent / "prompts" / "swarm_analyzer.prompt"
+    return load_prompt_template(prompt_path)
 
-def test_build_prompt_happy_path(sample_template):
-    """Test build_prompt with all fields provided."""
+def test_build_prompt_happy_path(real_template):
+    """Test build_prompt with all fields provided using real template."""
     issue_data = {
         'number': 123,
         'title': 'Test Issue',
@@ -31,49 +25,46 @@ def test_build_prompt_happy_path(sample_template):
     context = "def foo(): pass"
     rules = "Be nice."
 
-    result = build_prompt(sample_template, issue_data, context, rules)
+    result = build_prompt(real_template, issue_data, context, rules)
 
-    expected = """
-Issue Number: 123
-Title: Test Issue
-Body: This is a test issue body.
-Comment: Please fix this.
-Context:
-def foo(): pass
-Rules:
-Be nice.
-"""
-    assert result.strip() == expected.strip()
+    # Verify key components are present in the formatted result
+    assert "Issue Number: 123" in result
+    assert "Title: Test Issue" in result
+    assert "Description: This is a test issue body." in result
+    assert "Please fix this." in result
+    assert "def foo(): pass" in result
+    assert "Be nice." in result
 
-def test_build_prompt_missing_fields(sample_template):
+def test_build_prompt_missing_fields(real_template):
     """Test build_prompt with missing issue data fields (check defaults)."""
     issue_data = {}  # Empty dictionary
     context = "context"
     rules = "rules"
 
-    result = build_prompt(sample_template, issue_data, context, rules)
+    result = build_prompt(real_template, issue_data, context, rules)
 
     assert "Issue Number: N/A" in result
     assert "Title: No Title" in result
-    assert "Body: No Description" in result
-    # Comment default is empty string, so it should be empty in the output
-    # Template has "Comment: {comment}", so it becomes "Comment: "
-    assert "Comment: " in result
+    assert "Description: No Description" in result
+    # Comment default is empty, check header exists but content is empty/missing
+    assert "## Triggering Comment (Latest Instruction):" in result
 
-def test_build_prompt_empty_context_rules(sample_template):
+def test_build_prompt_empty_context_rules(real_template):
     """Test build_prompt with empty context and rules."""
     issue_data = {'title': 'Test'}
     context = ""
     rules = ""
 
-    result = build_prompt(sample_template, issue_data, context, rules)
+    result = build_prompt(real_template, issue_data, context, rules)
 
-    # Check that empty strings are correctly inserted
-    # Template: Context:\n{codebase} -> Context:\n
-    assert "Context:\n" in result
-    assert "Rules:\n" in result
+    # Verify headers exist
+    assert "## Project Context (Code Samples):" in result
+    assert "## Project Rules:" in result
+    # Verify no unexpected placeholders
+    assert "{codebase}" not in result
+    assert "{rules}" not in result
 
-def test_build_prompt_special_characters(sample_template):
+def test_build_prompt_special_characters(real_template):
     """Test build_prompt with special characters in input."""
     issue_data = {
         'title': 'Test "Quotes"',
@@ -83,8 +74,8 @@ def test_build_prompt_special_characters(sample_template):
     context = "def test():\n    return 'special'"
     rules = "Rule 1"
 
-    result = build_prompt(sample_template, issue_data, context, rules)
+    result = build_prompt(real_template, issue_data, context, rules)
 
     assert 'Title: Test "Quotes"' in result
-    assert 'Body: Line 1\nLine 2' in result
-    assert 'Comment: Special chars: {} []' in result
+    assert 'Description: Line 1\nLine 2' in result
+    assert 'Special chars: {} []' in result

@@ -105,19 +105,11 @@ def test_approval_logic():
 def test_load_rules():
     print("=== LOAD RULES TESTS ===")
 
-    # Test 1: File exists
-    dummy_file = "dummy_rules.md"
-    dummy_content = "Rule 1: Be cool."
-    with open(dummy_file, "w") as f:
-        f.write(dummy_content)
-
-    try:
-        content = load_rules(dummy_file)
-        assert content == dummy_content
-        print("Test 1 PASSED: File loaded successfully")
-    finally:
-        if os.path.exists(dummy_file):
-            os.remove(dummy_file)
+    # Test 1: Load real rules file
+    content = load_rules()
+    assert "HiveMind Global Directives" in content
+    assert "Real Data Only" in content
+    print("Test 1 PASSED: Real rules file loaded successfully")
 
     # Test 2: File missing
     content = load_rules("non_existent_rules.md")
