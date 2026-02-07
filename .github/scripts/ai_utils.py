@@ -178,7 +178,7 @@ def with_retry(func, max_retries: int = 3, base_delay: float = 1.0):
             last_exception = e
             
             if attempt == max_retries:
-                logger.error(f"All {max_retries + 1} attempts failed. Last error: {e}")
+                logger.error(redact_sensitive_data(f"All {max_retries + 1} attempts failed. Last error: {e}"))
                 raise
             
             # Exponential backoff: 1s, 2s, 4s...
@@ -187,7 +187,7 @@ def with_retry(func, max_retries: int = 3, base_delay: float = 1.0):
             jitter = delay * 0.25 * (random.random() * 2 - 1)
             sleep_time = max(0.1, delay + jitter)
             
-            logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {sleep_time:.2f}s...")
+            logger.warning(redact_sensitive_data(f"Attempt {attempt + 1} failed: {e}. Retrying in {sleep_time:.2f}s..."))
             time.sleep(sleep_time)
     
     raise last_exception
