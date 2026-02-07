@@ -157,17 +157,7 @@ def setup_generative_ai():
 def with_retry(func, max_retries: int = 3, base_delay: float = 1.0):
     """
     Execute a function with exponential backoff retry logic.
-    
-    Args:
-        func: Callable to execute
-        max_retries: Maximum number of retry attempts
-        base_delay: Initial delay in seconds
-    
-    Returns:
-        Result of the function call
-    
-    Raises:
-        Last exception if all retries fail
+    Special handling for Rate Limit errors (429).
     """
     last_exception = None
     
@@ -181,8 +171,20 @@ def with_retry(func, max_retries: int = 3, base_delay: float = 1.0):
                 logger.error(redact_sensitive_data(f"All {max_retries + 1} attempts failed. Last error: {e}"))
                 raise
             
-            # Exponential backoff: 1s, 2s, 4s...
+            # Check for Rate Limit Error
+            error_str = str(e).lower()
+            is_rate_limit = "429" in error_str or "rate limit" in error_str or "ratelimit" in error_str
+
+            # Determine delay
             delay = base_delay * (2 ** attempt)
+
+            if is_rate_limit:
+                # Force a larger backoff for rate limits
+                # Start with at least 5s, then scale up
+                rate_limit_penalty = 5.0
+                delay = max(delay, rate_limit_penalty * (attempt + 1))
+                logger.warning(f"Rate limit detected. Increasing backoff...")
+
             # Jitter: +/- 25%
             jitter = delay * 0.25 * (random.random() * 2 - 1)
             sleep_time = max(0.1, delay + jitter)
