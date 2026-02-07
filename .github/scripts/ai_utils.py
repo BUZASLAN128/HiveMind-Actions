@@ -135,25 +135,6 @@ def get_provider() -> ModelProvider:
         return GLMProvider()
 
 
-def setup_generative_ai():
-    """
-    Legacy function for backward compatibility.
-    Returns the Gemini client directly.
-    
-    DEPRECATED: Use get_provider() instead.
-    """
-    from google import genai
-    
-    api_key = os.environ.get('GEMINI_API_KEY')
-    if not api_key:
-        logger.error("Critical Error: GEMINI_API_KEY not found!")
-        sys.exit(1)
-    
-    client = genai.Client(api_key=api_key)
-    logger.info("Gemini AI client configured successfully (legacy mode).")
-    return client
-
-
 def with_retry(func, max_retries: int = 3, base_delay: float = 1.0):
     """
     Execute a function with exponential backoff retry logic.
