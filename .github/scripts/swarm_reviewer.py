@@ -77,7 +77,7 @@ def generate_review(provider, prompt: str) -> Dict[str, Any]:
         response = provider.generate(prompt)
         return parse_json_response(response)
     
-    result = with_retry(make_request, max_retries=3)
+    result = with_retry(make_request, max_retries=5, base_delay=2.0)
     
     # Validate and inject defaults for required keys
     defaults = {

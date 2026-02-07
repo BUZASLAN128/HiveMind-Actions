@@ -187,6 +187,29 @@ def with_retry(func, max_retries: int = 3, base_delay: float = 1.0):
             jitter = delay * 0.25 * (random.random() * 2 - 1)
             sleep_time = max(0.1, delay + jitter)
             
+            # Smart Rate Limit Detection
+            is_rate_limit = False
+            # Check string representation for common rate limit indicators
+            err_str = str(e).lower()
+            if "429" in err_str or "rate limit" in err_str or "too many requests" in err_str:
+                is_rate_limit = True
+
+            # Check explicit type if openai is available
+            if not is_rate_limit:
+                try:
+                    import openai
+                    if isinstance(e, openai.RateLimitError):
+                        is_rate_limit = True
+                except ImportError:
+                    pass
+
+            if is_rate_limit:
+                # Enforce a stricter delay for rate limits: at least 5s, scaling up
+                min_rate_limit_delay = 5.0 * (attempt + 1)
+                if sleep_time < min_rate_limit_delay:
+                    sleep_time = min_rate_limit_delay
+                logger.warning(f"Rate limit detected. Increased delay to {sleep_time:.2f}s")
+
             logger.warning(redact_sensitive_data(f"Attempt {attempt + 1} failed: {e}. Retrying in {sleep_time:.2f}s..."))
             time.sleep(sleep_time)
     
