@@ -13,18 +13,94 @@ import logging
 import random
 import time
 import re
+import hashlib
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
+from dataclasses import dataclass, field
+from datetime import datetime
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    stream=sys.stdout
-)
-logger = logging.getLogger(__name__)
+# --- Observability & Logging ---
 
+class JsonFormatter(logging.Formatter):
+    """Formatter for JSON structured logging."""
+    def format(self, record):
+        log_record = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "message": record.getMessage(),
+            "module": record.module,
+            "line": record.lineno
+        }
+        if record.exc_info:
+            log_record["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_record)
+
+def setup_logging():
+    """Configures logging based on environment variables."""
+    log_format = os.getenv('LOG_FORMAT', 'text').lower()
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+
+    handler = logging.StreamHandler(sys.stdout)
+
+    if log_format == 'json':
+        handler.setFormatter(JsonFormatter())
+    else:
+        handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+
+    # Remove existing handlers to avoid duplicates
+    if root_logger.handlers:
+        root_logger.handlers = []
+
+    root_logger.addHandler(handler)
+    return logging.getLogger(__name__)
+
+logger = setup_logging()
+
+@dataclass
+class TokenUsage:
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float = 0.0
+
+class TokenUsageTracker:
+    """Tracks token usage and estimates costs."""
+
+    # Simple cost estimation (per 1M tokens) - default to GLM-4 rates
+    COST_RATES = {
+        'glm-4': {'input': 10.0, 'output': 10.0}, # Placeholder
+        'gemini-2.0-flash': {'input': 0.10, 'output': 0.40},
+        'default': {'input': 5.0, 'output': 15.0}
+    }
+
+    def __init__(self):
+        self.usage = TokenUsage()
+        self._lock = False # Not needed for sync scripts but good practice
+
+    def track(self, model: str, input_tokens: int, output_tokens: int):
+        """Records usage and updates cost."""
+        self.usage.input_tokens += input_tokens
+        self.usage.output_tokens += output_tokens
+
+        # Estimate cost
+        rates = self.COST_RATES.get(model, self.COST_RATES['default'])
+        cost = (input_tokens / 1_000_000 * rates['input']) + \
+               (output_tokens / 1_000_000 * rates['output'])
+        self.usage.cost_usd += cost
+
+        logger.info(f"Token Usage: +{input_tokens} in, +{output_tokens} out. Est. Cost: ${cost:.6f}")
+
+    def get_summary(self) -> str:
+        return (f"Total Token Usage: {self.usage.input_tokens} In, "
+                f"{self.usage.output_tokens} Out. "
+                f"Est. Cost: ${self.usage.cost_usd:.4f}")
+
+# Global tracker instance
+usage_tracker = TokenUsageTracker()
+
+
+# --- Core AI Logic ---
 
 class ModelProvider(ABC):
     """Abstract base class for AI model providers."""
@@ -55,7 +131,7 @@ class GLMProvider(ModelProvider):
             logger.error("GLM_API_KEY or ZHIPUAI_API_KEY not found!")
             raise ValueError("GLM API Key not configured")
         
-        # Base URL - z.ai Coding Plan endpoint (with trailing slash)
+        # Base URL - z.ai Coding Plan endpoint
         base_url = os.getenv('GLM_BASE_URL', 'https://api.z.ai/api/coding/paas/v4/')
         
         self.client = OpenAI(
@@ -71,13 +147,25 @@ class GLMProvider(ModelProvider):
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
         
+        # Rough estimation of input tokens (char / 4)
+        input_est = len(json.dumps(messages)) // 4
+
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
             temperature=0.7,
             max_tokens=4096
         )
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+
+        # Track usage
+        if hasattr(response, 'usage') and response.usage:
+            usage_tracker.track(self.model, response.usage.prompt_tokens, response.usage.completion_tokens)
+        else:
+            output_est = len(content) // 4
+            usage_tracker.track(self.model, input_est, output_est)
+
+        return content
     
     def get_name(self) -> str:
         return f"GLM ({self.model})"
@@ -89,6 +177,7 @@ class GeminiProvider(ModelProvider):
     def __init__(self):
         try:
             from google import genai
+            from google.genai import types
         except ImportError:
             logger.error("google-genai package not installed. Run: pip install google-genai")
             raise
@@ -104,17 +193,100 @@ class GeminiProvider(ModelProvider):
     
     def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         full_prompt = prompt
-        if system_prompt:
-            full_prompt = f"{system_prompt}\n\n{prompt}"
         
+        config = None
+        if system_prompt:
+             # Use system_instruction if supported, or prepend
+            config = {'system_instruction': system_prompt}
+
+        # Estimate input
+        input_est = (len(prompt) + len(system_prompt or "")) // 4
+
         response = self.client.models.generate_content(
             model=self.model,
-            contents=full_prompt
+            contents=prompt,
+            config=config
         )
-        return response.text.strip()
+
+        text_response = response.text.strip()
+
+        # Track usage (Gemini API might provide usage metadata, but sticking to estimation for now or checking response object)
+        # response.usage_metadata exists in some versions
+        if hasattr(response, 'usage_metadata') and response.usage_metadata:
+             usage_tracker.track(self.model, response.usage_metadata.prompt_token_count, response.usage_metadata.candidates_token_count)
+        else:
+             output_est = len(text_response) // 4
+             usage_tracker.track(self.model, input_est, output_est)
+
+        return text_response
     
     def get_name(self) -> str:
         return f"Gemini ({self.model})"
+
+
+class MockProvider(ModelProvider):
+    """Mock Provider for testing without API keys."""
+
+    def __init__(self):
+        logger.info("Mock Provider initialized")
+
+    def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+        logger.info("Mock Provider generating response...")
+        usage_tracker.track("mock-model", len(prompt)//4, 50)
+        return json.dumps({
+            "mock_response": True,
+            "analysis": "This is a mock analysis.",
+            "should_proceed": True,
+            "issue_type": "feature_request",
+            "files_to_change": ["mock_file.py"],
+            "plan": ["Mock step 1", "Mock step 2"],
+            "approved": True,
+            "score": 10,
+            "security_ok": True
+        })
+
+    def get_name(self) -> str:
+        return "Mock Provider"
+
+
+class CachedProvider(ModelProvider):
+    """Wrapper that adds file-based caching to any provider."""
+
+    def __init__(self, provider: ModelProvider, cache_dir: str = ".swarm_cache"):
+        self.provider = provider
+        self.cache_dir = Path(cache_dir)
+        self.cache_dir.mkdir(exist_ok=True)
+        logger.info(f"Caching enabled in {self.cache_dir}")
+
+    def _get_cache_key(self, prompt: str, system_prompt: Optional[str]) -> str:
+        content = f"{self.provider.get_name()}:{system_prompt}:{prompt}"
+        return hashlib.sha256(content.encode()).hexdigest()
+
+    def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+        key = self._get_cache_key(prompt, system_prompt)
+        cache_file = self.cache_dir / f"{key}.json"
+
+        if cache_file.exists():
+            logger.info(f"Cache hit for {key[:8]}")
+            try:
+                data = json.loads(cache_file.read_text(encoding='utf-8'))
+                # update usage? Maybe not for cache hits, or track as 0 cost.
+                return data['content']
+            except Exception as e:
+                logger.warning(f"Failed to read cache: {e}")
+
+        logger.info(f"Cache miss for {key[:8]}")
+        content = self.provider.generate(prompt, system_prompt)
+
+        try:
+            cache_file.write_text(json.dumps({'content': content}), encoding='utf-8')
+        except Exception as e:
+            logger.warning(f"Failed to write cache: {e}")
+
+        return content
+
+    def get_name(self) -> str:
+        return f"Cached({self.provider.get_name()})"
 
 
 def get_provider() -> ModelProvider:
@@ -122,17 +294,25 @@ def get_provider() -> ModelProvider:
     Factory function to get the configured model provider.
     
     Environment Variables:
-        SWARM_MODEL_PROVIDER: 'glm' or 'gemini' (default: 'glm')
+        SWARM_MODEL_PROVIDER: 'glm', 'gemini', 'mock' (default: 'glm')
+        SWARM_CACHE: 'true'/'false' (default: 'false')
     """
     provider_name = os.getenv('SWARM_MODEL_PROVIDER', 'glm').lower()
     
-    if provider_name == 'glm':
-        return GLMProvider()
+    if provider_name == 'mock':
+        provider = MockProvider()
+    elif provider_name == 'glm':
+        provider = GLMProvider()
     elif provider_name == 'gemini':
-        return GeminiProvider()
+        provider = GeminiProvider()
     else:
         logger.warning(f"Unknown provider '{provider_name}', falling back to GLM")
-        return GLMProvider()
+        provider = GLMProvider()
+
+    if os.getenv('SWARM_CACHE', 'false').lower() == 'true':
+        provider = CachedProvider(provider)
+
+    return provider
 
 
 def setup_generative_ai():
@@ -281,6 +461,8 @@ def redact_sensitive_data(text: str) -> str:
         - API keys (OpenAI, Google, GitHub, Slack)
         - Passwords and secrets
         - Database credentials in URLs
+        - JWT tokens
+        - Internal IP addresses
     """
     patterns = [
         (r'sk-[a-zA-Z0-9]{20,}', '[REDACTED_OPENAI_KEY]'),
@@ -288,6 +470,10 @@ def redact_sensitive_data(text: str) -> str:
         (r'ghp_[a-zA-Z0-9]{36}', '[REDACTED_GITHUB_TOKEN]'),
         (r'gho_[a-zA-Z0-9]{36}', '[REDACTED_GITHUB_OAUTH]'),
         (r'xox[bap]-[a-zA-Z0-9-]{10,}', '[REDACTED_SLACK_TOKEN]'),
+        # JWT pattern: header.payload.signature (base64url)
+        (r'eyJ[a-zA-Z0-9-_]{10,}\.eyJ[a-zA-Z0-9-_]{10,}\.[a-zA-Z0-9-_]{10,}', '[REDACTED_JWT]'),
+        # Internal IP (10.x.x.x, 192.168.x.x, 172.16-31.x.x)
+        (r'\b(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})\b', '[REDACTED_INTERNAL_IP]'),
         (r'(?i)(password|secret|key|token|auth)\s*[=:]\s*["\']?[a-zA-Z0-9_.@/-]{3,}["\']?', r'\1=[REDACTED]'),
         (r'[a-zA-Z0-9._%+-]+:[a-zA-Z0-9._%+-]+@', '[REDACTED_CREDS]@'),
     ]

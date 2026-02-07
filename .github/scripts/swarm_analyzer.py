@@ -22,7 +22,8 @@ from ai_utils import (
     with_retry,
     redact_sensitive_data,
     logger,
-    load_rules
+    load_rules,
+    usage_tracker
 )
 
 # Configuration Constants
@@ -310,6 +311,8 @@ DO NOT reject this as unclear. Analyze and provide actionable suggestions.
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
         sys.exit(1)
+    finally:
+        logger.info(usage_tracker.get_summary())
 
 
 if __name__ == "__main__":

@@ -26,7 +26,8 @@ from ai_utils import (
     with_retry,
     redact_sensitive_data,
     logger,
-    load_rules
+    load_rules,
+    usage_tracker
 )
 
 
@@ -264,6 +265,8 @@ def main() -> None:
             comment=f"Critical error during review: {e}"
         )
         sys.exit(1)
+    finally:
+        logger.info(usage_tracker.get_summary())
 
 
 if __name__ == "__main__":
