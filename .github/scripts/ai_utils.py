@@ -36,6 +36,122 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# Metrics for tracking AI request performance
+class RequestMetrics:
+    """Tracks AI request metrics for observability."""
+    
+    def __init__(self):
+        self.total_requests: int = 0
+        self.successful_requests: int = 0
+        self.failed_requests: int = 0
+        self.total_duration: float = 0.0
+        self.durations: List[float] = []
+        self._max_durations: int = 1000  # Prevent memory leak
+    
+    def record(self, duration: float, success: bool) -> None:
+        """Record a request result."""
+        self.total_requests += 1
+        self.total_duration += duration
+        
+        if len(self.durations) < self._max_durations:
+            self.durations.append(duration)
+        
+        if success:
+            self.successful_requests += 1
+        else:
+            self.failed_requests += 1
+    
+    @property
+    def success_rate(self) -> float:
+        """Return success rate as percentage."""
+        if self.total_requests == 0:
+            return 0.0
+        return self.successful_requests / self.total_requests * 100
+    
+    @property
+    def avg_duration(self) -> float:
+        """Return average request duration."""
+        if not self.durations:
+            return 0.0
+        return sum(self.durations) / len(self.durations)
+    
+    def summary(self) -> str:
+        """Return human-readable summary."""
+        return (
+            f"Requests: {self.total_requests} | "
+            f"Success: {self.success_rate:.1f}% | "
+            f"Avg Time: {self.avg_duration:.2f}s"
+        )
+    
+    def reset(self) -> None:
+        """Reset all metrics."""
+        self.total_requests = 0
+        self.successful_requests = 0
+        self.failed_requests = 0
+        self.total_duration = 0.0
+        self.durations = []
+
+
+# Global metrics instance
+metrics = RequestMetrics()
+
+
+# Configuration management
+_config_cache: Dict[str, Any] = {}
+
+def load_config(config_path: str = '.github/config.json') -> Dict[str, Any]:
+    """
+    Load configuration from JSON file with caching.
+    
+    Args:
+        config_path: Path to the config file
+        
+    Returns:
+        Configuration dictionary
+    """
+    global _config_cache
+    
+    if _config_cache:
+        return _config_cache
+    
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            _config_cache = json.load(f)
+        logger.info(f"Loaded config from {config_path}")
+    except FileNotFoundError:
+        logger.warning(f"Config not found at {config_path}, using defaults")
+        _config_cache = {}
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in config file: {e}")
+        _config_cache = {}
+    
+    return _config_cache
+
+
+def get_config(key: str, default: Any = None) -> Any:
+    """
+    Get a config value by dot notation key.
+    
+    Args:
+        key: Dot-separated key path (e.g., 'limits.max_diff_read')
+        default: Default value if key not found
+        
+    Returns:
+        Config value or default
+    """
+    config = load_config()
+    keys = key.split('.')
+    value = config
+    
+    for k in keys:
+        if isinstance(value, dict) and k in value:
+            value = value[k]
+        else:
+            return default
+    
+    return value
+
+
 class ModelProvider(ABC):
     """Abstract base class for AI model providers."""
     
@@ -48,6 +164,23 @@ class ModelProvider(ABC):
     def get_name(self) -> str:
         """Return the provider name."""
         pass
+    
+    def health_check(self) -> Tuple[bool, str]:
+        """
+        Check if provider is healthy and responsive.
+        
+        Returns:
+            Tuple of (is_healthy: bool, message: str)
+        """
+        try:
+            start = time.time()
+            response = self.generate("Say OK")
+            duration = time.time() - start
+            if response and len(response) > 0:
+                return True, f"Healthy ({duration:.2f}s)"
+            return False, "Empty response"
+        except Exception as e:
+            return False, str(e)
 
 
 class GLMProvider(ModelProvider):
@@ -88,6 +221,50 @@ class GLMProvider(ModelProvider):
             max_tokens=4096
         )
         return response.choices[0].message.content
+    
+    def generate_stream(self, prompt: str, system_prompt: Optional[str] = None):
+        """
+        Stream response chunks for long responses.
+        
+        Args:
+            prompt: User prompt
+            system_prompt: Optional system prompt
+            
+        Yields:
+            Response chunks as strings
+        """
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=0.7,
+            max_tokens=4096,
+            stream=True
+        )
+        
+        for chunk in response:
+            if chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+    
+    def generate_with_stream(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+        """
+        Generate full response using streaming (more reliable for long responses).
+        
+        Args:
+            prompt: User prompt
+            system_prompt: Optional system prompt
+            
+        Returns:
+            Complete response string
+        """
+        parts = []
+        for chunk in self.generate_stream(prompt, system_prompt):
+            parts.append(chunk)
+        return "".join(parts)
     
     def get_name(self) -> str:
         return f"GLM ({self.model})"
@@ -180,14 +357,22 @@ def with_retry(func, max_retries: int = 3, base_delay: float = 1.0):
         Last exception if all retries fail
     """
     last_exception = None
+    start_time = time.time()
     
     for attempt in range(max_retries + 1):
         try:
-            return func()
+            result = func()
+            # Record successful request
+            duration = time.time() - start_time
+            metrics.record(duration, success=True)
+            return result
         except Exception as e:
             last_exception = e
             
             if attempt == max_retries:
+                # Record failed request
+                duration = time.time() - start_time
+                metrics.record(duration, success=False)
                 logger.error(redact_sensitive_data(f"All {max_retries + 1} attempts failed. Last error: {e}"))
                 raise
             

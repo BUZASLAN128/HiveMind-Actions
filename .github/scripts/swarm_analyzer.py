@@ -13,7 +13,7 @@ import os
 import sys
 import json
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from pydantic import BaseModel, Field
 
 from ai_utils import (
@@ -42,6 +42,14 @@ class AnalysisResult(BaseModel):
 DEFAULT_EXTENSIONS = {'.py', '.js', '.ts', '.jsx', '.tsx', '.go', '.rs', '.java'}
 DEFAULT_PRIORITY_DIRS = ['app', 'src', 'lib', 'core']
 
+# Exclude patterns - directories to skip during codebase scanning
+DEFAULT_EXCLUDE_PATTERNS = [
+    'node_modules', '__pycache__', '.git', 'dist', 'build',
+    'venv', '.venv', 'env', 'vendor', '.next', '.nuxt',
+    'coverage', '.nyc_output', '.pytest_cache', '.tox',
+    'eggs', '*.egg-info', '.eggs'
+]
+
 # Research mode keywords - triggers codebase analysis even for unclear issues
 RESEARCH_KEYWORDS = [
     'incele', 'arastir', 'analiz', 'oneriler', 'gelistirme', 'iyilestirme',
@@ -54,7 +62,8 @@ def get_codebase_context(
     max_files: int = 20,
     max_len: int = MAX_RULES_READ_LIMIT,
     extensions: set = None,
-    priority_dirs: list = None
+    priority_dirs: list = None,
+    exclude_patterns: list = None
 ) -> str:
     """
     Collects codebase context by reading source files in the project root.
@@ -76,6 +85,7 @@ def get_codebase_context(
     # Use defaults if not provided
     extensions = extensions or DEFAULT_EXTENSIONS
     priority_dirs = priority_dirs or DEFAULT_PRIORITY_DIRS
+    exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
     
     # Prepare extensions for checking
     valid_extensions = tuple(ext if ext.startswith('.') else f".{ext}" for ext in extensions)
@@ -88,6 +98,11 @@ def get_codebase_context(
             for file_path in priority_path.rglob("*"):
                 if total_files >= max_files:
                     break
+                
+                # Skip excluded directories
+                path_str = str(file_path)
+                if any(pattern in path_str for pattern in exclude_patterns):
+                    continue
 
                 if file_path.is_file() and file_path.name.endswith(valid_extensions):
                     try:
@@ -108,6 +123,46 @@ def get_codebase_context(
     
     logger.info(f"Collected context from {total_files} files")
     return "\n".join(context_parts)
+
+
+# Caching for codebase context
+_context_cache: Dict[str, Tuple[str, float]] = {}
+CACHE_TTL = 300  # 5 minutes
+
+def get_codebase_context_cached(
+    root_dir: Path,
+    max_files: int = 20,
+    max_len: int = MAX_RULES_READ_LIMIT
+) -> str:
+    """
+    Cached version of get_codebase_context.
+    Uses TTL-based cache to avoid repeated file system scans.
+    
+    Args:
+        root_dir: Project root directory
+        max_files: Maximum number of files to read
+        max_len: Maximum character length per file
+        
+    Returns:
+        Cached or freshly collected codebase context
+    """
+    import hashlib
+    import time
+    
+    # Generate cache key based on directory and params
+    cache_key = f"{root_dir}:{max_files}:{max_len}"
+    
+    if cache_key in _context_cache:
+        content, timestamp = _context_cache[cache_key]
+        if time.time() - timestamp < CACHE_TTL:
+            logger.info("Using cached codebase context")
+            return content
+    
+    # Fetch fresh content
+    content = get_codebase_context(root_dir, max_files, max_len)
+    _context_cache[cache_key] = (content, time.time())
+    
+    return content
 
 
 

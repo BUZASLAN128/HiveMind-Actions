@@ -1,3 +1,74 @@
 {
-  "ai_model": "gemini-2.0-flash"
+  "limits": {
+    "max_diff_read": 30000,
+    "max_rules_read": 50000,
+    "max_files_context": 20,
+    "max_file_length": 50000
+  },
+  "extensions": [
+    ".py",
+    ".js",
+    ".ts",
+    ".jsx",
+    ".tsx",
+    ".go",
+    ".rs",
+    ".java"
+  ],
+  "priority_dirs": [
+    "app",
+    "src",
+    "lib",
+    "core"
+  ],
+  "exclude_patterns": [
+    "node_modules",
+    "__pycache__",
+    ".git",
+    "dist",
+    "build",
+    "venv",
+    ".venv",
+    "env",
+    "vendor",
+    ".next",
+    ".nuxt",
+    "coverage",
+    ".nyc_output",
+    ".pytest_cache",
+    ".tox"
+  ],
+  "research_keywords": {
+    "tr": [
+      "incele",
+      "arastir",
+      "analiz",
+      "oneriler",
+      "gelistirme",
+      "iyilestirme"
+    ],
+    "en": [
+      "research",
+      "analyze",
+      "suggest",
+      "improve",
+      "review",
+      "audit"
+    ]
+  },
+  "retry": {
+    "max_retries": 3,
+    "base_delay": 1.0,
+    "rate_limit_delay": 5.0
+  },
+  "providers": {
+    "default": "glm",
+    "glm": {
+      "model": "glm-4.7",
+      "base_url": "https://api.z.ai/api/coding/paas/v4/"
+    },
+    "gemini": {
+      "model": "gemini-2.0-flash"
+    }
+  }
 }
