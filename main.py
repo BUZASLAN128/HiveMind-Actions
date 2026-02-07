@@ -11,7 +11,7 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '.github', 'scripts'))
 
 # pylint: disable=import-error, wrong-import-position
-from ai_utils import get_provider, logger
+from ai_utils import get_provider, logger, with_retry
 
 # Constants
 MAX_PROMPT_LEN = 1000
@@ -19,10 +19,6 @@ MAX_PROMPT_LEN = 1000
 
 def main():
     """Main function to run the application."""
-    # 2. Before using the Jules API, check if os.environ['JULES_API_KEY'] exists
-    if not os.environ.get('JULES_API_KEY'):
-        raise EnvironmentError("JULES_API_KEY not found in environment variables.")
-
     # Get prompt from args or default
     if len(sys.argv) > 1:
         prompt = sys.argv[1]
@@ -37,12 +33,20 @@ def main():
 
     logger.info("Initializing Jules API Provider...")
 
-    # Use ai_utils to get provider (it will use JULES_API_KEY if GLM/Z.ai is used)
-    provider = get_provider()
+    try:
+        # Use ai_utils to get provider (it will use JULES_API_KEY if GLM/Z.ai is used)
+        provider = get_provider()
+    except ValueError as e:
+        # 2. Before using the Jules API, check if os.environ['JULES_API_KEY'] exists
+        # Catch ValueError from ai_utils (missing key) and raise EnvironmentError to satisfy req
+        if "API Key not configured" in str(e):
+            raise EnvironmentError("JULES_API_KEY not found in environment variables.") from e
+        raise
 
     start_time = time.time()
     try:
-        response = provider.generate(prompt)
+        # Wrap with retry logic
+        response = with_retry(lambda: provider.generate(prompt))
         logger.info("Response: %s...", response[:100])
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("Error generating response: %s", e)

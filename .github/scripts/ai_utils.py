@@ -57,7 +57,11 @@ class GLMProvider(ModelProvider):
             raise ValueError("GLM API Key not configured")
 
         # Base URL - z.ai Coding Plan endpoint (with trailing slash)
-        base_url = os.getenv('GLM_BASE_URL') or os.getenv('JULES_API_URL') or DEFAULT_JULES_API_URL
+        base_url = os.getenv('GLM_BASE_URL')
+        if base_url is None:
+            base_url = os.getenv('JULES_API_URL')
+        if base_url is None:
+            base_url = DEFAULT_JULES_API_URL
 
         self.client = OpenAI(
             api_key=api_key,
