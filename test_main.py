@@ -20,13 +20,13 @@ class TestMain(unittest.TestCase):
         os.environ.update(self.original_environ)
 
     @patch('main.get_provider')
-    def test_missing_jules_api_key(self, mock_get_provider):
+    def test_missing_glm_api_key(self, mock_get_provider):
         """Test that main raises EnvironmentError if provider raises ValueError for missing key."""
         mock_get_provider.side_effect = ValueError("API Key not configured")
 
         with self.assertRaises(EnvironmentError) as cm:
             main.main()
-        self.assertIn("JULES_API_KEY not found", str(cm.exception))
+        self.assertIn("GLM_API_KEY not found", str(cm.exception))
 
     @patch('main.get_provider')
     def test_max_prompt_len(self, mock_get_provider):

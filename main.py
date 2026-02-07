@@ -34,13 +34,13 @@ def main():
     logger.info("Initializing Jules API Provider...")
 
     try:
-        # Use ai_utils to get provider (it will use JULES_API_KEY if GLM/Z.ai is used)
+        # Use ai_utils to get provider
         provider = get_provider()
     except ValueError as e:
-        # 2. Before using the Jules API, check if os.environ['JULES_API_KEY'] exists
+        # 2. Before using the Jules API, check if os.environ['GLM_API_KEY'] exists
         # Catch ValueError from ai_utils (missing key) and raise EnvironmentError to satisfy req
         if "API Key not configured" in str(e):
-            raise EnvironmentError("JULES_API_KEY not found in environment variables.") from e
+            raise EnvironmentError("GLM_API_KEY not found in environment variables.") from e
         raise
 
     start_time = time.time()

@@ -26,7 +26,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Constants
-DEFAULT_JULES_API_URL = 'https://api.z.ai/api/coding/paas/v4/'
+DEFAULT_GLM_API_URL = 'https://api.z.ai/api/coding/paas/v4/'
 
 
 class ModelProvider(ABC):
@@ -51,17 +51,13 @@ class GLMProvider(ModelProvider):
             logger.error("openai package not installed. Run: pip install openai")
             raise exc
 
-        api_key = os.getenv('GLM_API_KEY') or os.getenv('ZHIPUAI_API_KEY') or os.getenv('JULES_API_KEY')
+        api_key = os.getenv('GLM_API_KEY') or os.getenv('ZHIPUAI_API_KEY')
         if not api_key:
-            logger.error("GLM_API_KEY, ZHIPUAI_API_KEY or JULES_API_KEY not found!")
+            logger.error("GLM_API_KEY or ZHIPUAI_API_KEY not found!")
             raise ValueError("GLM API Key not configured")
 
         # Base URL - z.ai Coding Plan endpoint (with trailing slash)
-        base_url = os.getenv('GLM_BASE_URL')
-        if base_url is None:
-            base_url = os.getenv('JULES_API_URL')
-        if base_url is None:
-            base_url = DEFAULT_JULES_API_URL
+        base_url = os.getenv('GLM_BASE_URL') or DEFAULT_GLM_API_URL
 
         self.client = OpenAI(
             api_key=api_key,
