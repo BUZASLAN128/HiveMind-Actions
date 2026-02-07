@@ -25,7 +25,8 @@ from ai_utils import (
     parse_json_response,
     with_retry,
     redact_sensitive_data,
-    logger
+    logger,
+    load_rules
 )
 
 
@@ -47,12 +48,6 @@ def get_diff_content(filepath: str = 'coder_changes.diff') -> str:
         return "No changes found"
 
 
-def load_rules(filepath: str = '.github/swarm_rules.md') -> str:
-    """Reads project rules from the file."""
-    try:
-        return Path(filepath).read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return "No specific project rules found. Apply general Clean Code principles."
 
 
 def build_prompt(template: str, diff: str, rules: str) -> str:

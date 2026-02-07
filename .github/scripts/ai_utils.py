@@ -316,3 +316,21 @@ def load_prompt_template(prompt_path: Path) -> str:
     except IOError as e:
         logger.error(f"Error reading prompt file: {prompt_path} - {e}")
         raise
+
+def load_rules(filepath: str = '.github/swarm_rules.md') -> str:
+    """
+    Reads project rules from the configuration file.
+
+    Args:
+        filepath (str): Path to the rules file.
+
+    Returns:
+        str: Content of the file or a default message if not found.
+    """
+    try:
+        content = Path(filepath).read_text(encoding="utf-8")
+        logger.info(f"Loaded project rules from {filepath}")
+        return content
+    except FileNotFoundError:
+        logger.warning(f"No project rules found at {filepath}, using defaults")
+        return "No project rules found. Apply general Clean Code principles."

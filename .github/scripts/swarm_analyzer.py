@@ -21,7 +21,8 @@ from ai_utils import (
     parse_json_response,
     with_retry,
     redact_sensitive_data,
-    logger
+    logger,
+    load_rules
 )
 
 # Configuration Constants
@@ -84,16 +85,6 @@ def get_codebase_context(
     logger.info(f"Collected context from {total_files} files")
     return "\n".join(context_parts)
 
-
-def load_rules(filepath: str = '.github/swarm_rules.md') -> str:
-    """Reads project rules from the configuration file."""
-    try:
-        content = Path(filepath).read_text(encoding="utf-8")
-        logger.info("Loaded project rules")
-        return content
-    except FileNotFoundError:
-        logger.warning("No project rules found, using defaults")
-        return "No project rules found. Apply general Clean Code principles."
 
 
 def is_research_request(issue_data: Dict[str, Any]) -> bool:
