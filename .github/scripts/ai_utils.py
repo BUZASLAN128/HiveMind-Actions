@@ -89,6 +89,8 @@ class GeminiProvider(ModelProvider):
     def __init__(self):
         try:
             from google import genai
+            from google.genai import types
+            self.types = types
         except ImportError:
             logger.error("google-genai package not installed. Run: pip install google-genai")
             raise
@@ -103,13 +105,16 @@ class GeminiProvider(ModelProvider):
         logger.info(f"Gemini Provider initialized with model: {self.model}")
     
     def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        full_prompt = prompt
+        config = None
         if system_prompt:
-            full_prompt = f"{system_prompt}\n\n{prompt}"
+            config = self.types.GenerateContentConfig(
+                system_instruction=system_prompt
+            )
         
         response = self.client.models.generate_content(
             model=self.model,
-            contents=full_prompt
+            contents=prompt,
+            config=config
         )
         return response.text.strip()
     
