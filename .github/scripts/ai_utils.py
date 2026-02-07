@@ -51,44 +51,56 @@ class ModelProvider(ABC):
 
 
 class GLMProvider(ModelProvider):
-    """GLM-4 Provider using OpenAI-compatible API."""
+    """GLM-4 Provider using requests (more robust than openai/httpx in some CIs)."""
     
     def __init__(self):
         try:
-            from openai import OpenAI
+            import requests
         except ImportError:
-            logger.error("openai package not installed. Run: pip install openai")
+            logger.error("requests package not installed. Run: pip install requests")
             raise
         
-        api_key = os.getenv('GLM_API_KEY') or os.getenv('ZHIPUAI_API_KEY')
-        if not api_key:
+        self.api_key = os.getenv("GLM_API_KEY") or os.getenv("ZHIPUAI_API_KEY")
+        if not self.api_key:
             logger.error("GLM_API_KEY or ZHIPUAI_API_KEY not found!")
             raise ValueError("GLM API Key not configured")
         
         # Base URL - z.ai Coding Plan endpoint (with trailing slash)
-        base_url = os.getenv('GLM_BASE_URL', 'https://api.z.ai/api/coding/paas/v4/')
+        self.base_url = os.getenv("GLM_BASE_URL", "https://api.z.ai/api/coding/paas/v4/")
+        if not self.base_url.endswith("/"):
+            self.base_url += "/"
         
-        self.client = OpenAI(
-            api_key=api_key,
-            base_url=base_url
-        )
-        self.model = os.getenv('GLM_MODEL', 'glm-4.7')
-        logger.info(f"GLM Provider initialized: model={self.model}, base_url={base_url}")
+        self.model = os.getenv("GLM_MODEL", "glm-4.7")
+        logger.info(f"GLM Provider initialized: model={self.model}, base_url={self.base_url}")
     
     def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+        import requests
+
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
         
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=0.7,
-            max_tokens=4096
-        )
-        return response.choices[0].message.content
-    
+        url = f"{self.base_url}chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 4096
+        }
+
+        try:
+            response = requests.post(url, headers=headers, json=data, timeout=60)
+            response.raise_for_status()
+            return response.json()["choices"][0]["message"]["content"]
+        except requests.exceptions.RequestException as e:
+            logger.error(f"GLM API Request failed: {e}")
+            raise
+
     def get_name(self) -> str:
         return f"GLM ({self.model})"
 
