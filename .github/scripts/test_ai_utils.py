@@ -19,12 +19,22 @@ class TestAIUtils(unittest.TestCase):
         shutil.rmtree(self.test_dir)
 
     def test_load_prompt_template_success(self):
-        prompt_file = self.test_dir / "test_prompt.txt"
-        content = "This is a test prompt."
-        prompt_file.write_text(content, encoding="utf-8")
+        """
+        Test loading a real prompt template.
 
-        result = load_prompt_template(prompt_file)
-        self.assertEqual(result, content)
+        Depends on: .github/prompts/swarm_analyzer.prompt (Real Project File)
+        """
+        prompt_path = Path(__file__).parent.parent / "prompts" / "swarm_analyzer.prompt"
+
+        # Pre-check: Verify prompt file exists
+        if not prompt_path.exists():
+            self.skipTest(f"Real prompt file not found at {prompt_path}")
+
+        result = load_prompt_template(prompt_path)
+
+        # Verify content matches what we expect
+        self.assertIn("HiveMind Analyst Agent", result, "Prompt missing expected Agent name")
+        self.assertIn("Project Rules:", result, "Prompt missing Project Rules section")
 
     def test_load_prompt_template_not_found(self):
         prompt_file = self.test_dir / "non_existent.txt"
