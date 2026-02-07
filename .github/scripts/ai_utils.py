@@ -17,6 +17,16 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 
+try:
+    from google import genai
+except ImportError:
+    genai = None
+
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -44,11 +54,9 @@ class GLMProvider(ModelProvider):
     """GLM-4 Provider using OpenAI-compatible API."""
     
     def __init__(self):
-        try:
-            from openai import OpenAI
-        except ImportError:
+        if OpenAI is None:
             logger.error("openai package not installed. Run: pip install openai")
-            raise
+            raise ImportError("openai package not installed")
         
         api_key = os.getenv('GLM_API_KEY') or os.getenv('ZHIPUAI_API_KEY')
         if not api_key:
@@ -87,11 +95,9 @@ class GeminiProvider(ModelProvider):
     """Google Gemini Provider."""
     
     def __init__(self):
-        try:
-            from google import genai
-        except ImportError:
+        if genai is None:
             logger.error("google-genai package not installed. Run: pip install google-genai")
-            raise
+            raise ImportError("google-genai package not installed")
         
         api_key = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
         if not api_key:
@@ -142,7 +148,9 @@ def setup_generative_ai():
     
     DEPRECATED: Use get_provider() instead.
     """
-    from google import genai
+    if genai is None:
+        logger.error("google-genai package not installed. Run: pip install google-genai")
+        raise ImportError("google-genai package not installed")
     
     api_key = os.environ.get('GEMINI_API_KEY')
     if not api_key:
