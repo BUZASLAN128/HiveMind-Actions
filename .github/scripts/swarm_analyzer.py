@@ -56,7 +56,8 @@ def get_codebase_context(root_dir: Path, max_files: int = 20, max_len: int = 200
                     if total_files >= max_files:
                         break
                     try:
-                        content = file_path.read_text(encoding='utf-8')[:max_len]
+                        with file_path.open(encoding='utf-8') as f:
+                            content = f.read(max_len)
                         relative_path = file_path.relative_to(root_dir)
                         lang = ext[1:]  # Remove dot
                         context_parts.append(f"### {relative_path}\n```{lang}\n{content}\n```")
