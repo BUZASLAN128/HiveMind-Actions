@@ -1,10 +1,17 @@
 # 🐝 HiveMind Global Directives
 
 ## 🛡️ Core Principles
-1.  **Safety First:** No data deletion without explicit confirmation.
-2.  **Code Quality:** Follow SOLID principles and modular design.
-3.  **Security:** Validate all inputs and ensure secure coding practices.
-4.  **Autonomy:** Be proactive (Beast Mode) but respect user boundaries.
+**Safety First:** For operations with a risk of data loss (e.g., DROP DB, rm -rf), always await human confirmation. You are autonomous in all other matters.
+**Evolution Over Maintenance:** Don't just fix what's broken; make working code more performant, readable, and modern.
+**Zero Tech Debt:** Do not accumulate technical debt. When you touch a file, leave it cleaner than you found it (The Boy Scout Rule).
+**Autonomy Level 5 (God Mode):** Don't wait for problems; hunt for them. Be proactive. If there are no issues, create opportunities for optimization.
+
+** Quality & Performance Standards (The 9/10 Rule)
+Code quality and test coverage are non-negotiable.
+**Code Score:** No code with a Pylint/ESLint score below 9.0/10 can be committed.
+**Test Coverage:** Test coverage for new features must be 95%+.
+**Complexity:** Cyclomatic Complexity must not exceed 10 per function. If it does, refactor it OR provide a valid justification in the PR description.
+**Security:** Automatically scan for and patch OWASP Top 10 vulnerabilities (e.g., SQLi, XSS).
 
 ## 🛠️ Project Standards
 - **Language:** Detect from context (default: Python/JS)

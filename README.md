@@ -59,17 +59,45 @@ No servers to manage. No Docker containers to host.
 | **Coder (Jules)** | 🐝 | Droneworker | Writes code, fixes bugs, and handles git operations autonomously. |
 | **Reviewer** | 🔎 | Quality Gate | Enforces rules, checks security, and **blocks bad PRs**. |
  
-### 🔄 Swarm Workflow
+### 🔄 The HiveMind Workflow: How Agents are Triggered
+
+The HiveMind Swarm operates in a sequential, predictable, and centralized manner to ensure stability and prevent redundant operations. Here’s how the agents collaborate:
+
+1.  **🔍 Analyst Agent (`agent-analyst.yml`)**
+    *   **Trigger:** A user with write-access posts a comment containing `@analyst` or `@analyze` on an issue.
+    *   **Action:** The Analyst assesses the issue, gathers context from the codebase, and creates a detailed implementation plan.
+    *   **Output:** It triggers the Coder Agent by dispatching a `workflow_dispatch` event.
+
+2.  **🤖 Coder Agent (`agent-coder.yml`)**
+    *   **Trigger:** Receives a `workflow_dispatch` event exclusively from the Analyst Agent.
+        *   **Note:** Manual triggers (via issue comments or labels) have been **removed** to centralize control and prevent the agent from running multiple times on the same task.
+    *   **Action:** The Coder (Jules) executes the plan from the Analyst, writes code, runs tests, and opens a pull request.
+    *   **Output:** A pull request ready for review.
+
+3.  **🔎 Reviewer Agent (`agent-reviewer.yml`)**
+    *   **Trigger:** A pull request is `opened`, `synchronize`d (a new commit is pushed), or marked `ready_for_review`.
+    *   **Action:** The Reviewer inspects the code changes against the project's golden rules (`swarm_rules.md`), checks for security vulnerabilities, and analyzes for bugs.
+    *   **Output:**
+        *   **If Approved:** The pull request is approved and can be merged.
+        *   **If Rejected:** The Reviewer initiates the **Self-Correction Loop**, sending feedback directly to the Coder Agent to fix the issues automatically.
+
+This centralized, dispatch-based flow ensures that each agent acts only when it's supposed to, creating a robust and reliable automation pipeline.
+
 ```mermaid
 graph TD
-    A["👤 User (Issue/Comment)"] -- "@analyst" --> B["🔍 Analyst Agent"]
-    B -- "Plans & Tasks" --> C["🐝 Coder Agent (Jules)"]
-    C -- "Writes Code & opens PR" --> D["🔎 Reviewer Agent"]
-    D -- "Checks Security & Rules" --> E{"Analysis Result"}
-    E -- "Approved" --> F["✅ PR Merged"]
-    E -- "Rejected" --> G["❌ Self-Correction Loop"]
-    G -- "Instructions" --> C
-    F -- "Done" --> H["🎉 Task Completed"]
+    subgraph "Step 1: Analysis"
+        A["👤 User posts comment on Issue<br>('@analyst')"] --> B["[agent-analyst.yml]<br>🔍 Analyst Agent"];
+    end
+    subgraph "Step 2: Coding"
+        B -- "Triggers Coder via workflow_dispatch" --> C["[agent-coder.yml]<br>🤖 Coder Agent (Jules)"];
+        C -- "Opens a Pull Request" --> D;
+    end
+    subgraph "Step 3: Review & Self-Correction"
+        D["[agent-reviewer.yml]<br>🔎 Reviewer Agent"] -- "Inspects PR" --> E{"Verdict?"};
+        E -- "✅ Approved" --> F["PR Merged"];
+        E -- "❌ Rejected" --> G["Self-Correction Loop<br>(Reviewer tells Coder to fix it)"];
+        G --> C;
+    end
 ```
 
 ---
