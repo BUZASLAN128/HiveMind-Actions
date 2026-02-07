@@ -27,7 +27,8 @@ from ai_utils import (
     with_retry,
     redact_sensitive_data,
     logger,
-    load_rules
+    load_rules,
+    MAX_DIFF_READ_LIMIT
 )
 
 class ReviewResult(BaseModel):
@@ -47,13 +48,12 @@ def get_diff_content(filepath: str = 'coder_changes.diff') -> str:
     Reads the diff content from the specified file path.
     Truncates large diffs and adds notice.
     """
-    limit = 30000
     try:
         with open(filepath, 'r', encoding="utf-8") as f:
-            content = f.read(limit + 1)
-            if len(content) > limit:
-                logger.warning(f"Diff truncated because it exceeds {limit} chars")
-                return content[:limit] + "\n\n... [DIFF TRUNCATED DUE TO SIZE LIMIT] ..."
+            content = f.read(MAX_DIFF_READ_LIMIT + 1)
+            if len(content) > MAX_DIFF_READ_LIMIT:
+                logger.warning(f"Diff truncated because it exceeds {MAX_DIFF_READ_LIMIT} chars")
+                return content[:MAX_DIFF_READ_LIMIT] + "\n\n... [DIFF TRUNCATED DUE TO SIZE LIMIT] ..."
             return content
     except FileNotFoundError:
         logger.warning(f"Diff file not found: {filepath}")

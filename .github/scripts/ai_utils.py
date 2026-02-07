@@ -23,6 +23,10 @@ except ImportError:
     TypeAdapter = None
     ValidationError = None
 
+# Constants
+MAX_DIFF_READ_LIMIT = 30000
+MAX_RULES_READ_LIMIT = 50000
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -389,7 +393,13 @@ def load_rules(filepath: str = '.github/swarm_rules.md') -> str:
         str: Content of the file or a default message if not found.
     """
     try:
-        content = Path(filepath).read_text(encoding="utf-8")
+        with open(filepath, 'r', encoding="utf-8") as f:
+            content = f.read(MAX_RULES_READ_LIMIT + 1)
+
+        if len(content) > MAX_RULES_READ_LIMIT:
+            logger.warning(f"Rules file {filepath} truncated because it exceeds {MAX_RULES_READ_LIMIT} chars")
+            content = content[:MAX_RULES_READ_LIMIT] + "\n\n... [RULES TRUNCATED] ..."
+
         logger.info(f"Loaded project rules from {filepath}")
         return content
     except FileNotFoundError:

@@ -23,7 +23,8 @@ from ai_utils import (
     with_retry,
     redact_sensitive_data,
     logger,
-    load_rules
+    load_rules,
+    MAX_RULES_READ_LIMIT
 )
 
 class AnalysisResult(BaseModel):
@@ -51,7 +52,7 @@ RESEARCH_KEYWORDS = [
 def get_codebase_context(
     root_dir: Path,
     max_files: int = 20,
-    max_len: int = 2000,
+    max_len: int = MAX_RULES_READ_LIMIT,
     extensions: set = None,
     priority_dirs: list = None
 ) -> str:
@@ -91,7 +92,12 @@ def get_codebase_context(
                 if file_path.is_file() and file_path.name.endswith(valid_extensions):
                     try:
                         with file_path.open(encoding='utf-8') as f:
-                            content = f.read(max_len)
+                            content = f.read(max_len + 1)
+
+                        if len(content) > max_len:
+                            logger.warning(f"File {file_path} truncated to {max_len} chars")
+                            content = content[:max_len] + "\n... [TRUNCATED]"
+
                         relative_path = file_path.relative_to(root_dir)
                         # Use suffix as language identifier (removing dot)
                         lang = file_path.suffix[1:] if file_path.suffix else "txt"
