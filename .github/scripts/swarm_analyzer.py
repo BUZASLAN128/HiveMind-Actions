@@ -72,6 +72,7 @@ def get_codebase_context(
                     if total_files >= max_files:
                         break
                     try:
+                        # Optimization: Use read(limit) to avoid loading entire file into memory
                         with file_path.open(encoding='utf-8') as f:
                             content = f.read(max_len)
                         relative_path = file_path.relative_to(root_dir)
@@ -88,7 +89,11 @@ def get_codebase_context(
 def load_rules(filepath: str = '.github/swarm_rules.md') -> str:
     """Reads project rules from the configuration file."""
     try:
-        content = Path(filepath).read_text(encoding="utf-8")
+        limit = 50000
+        with Path(filepath).open(encoding="utf-8") as f:
+            content = f.read(limit)
+            if len(content) == limit:
+                logger.warning(f"Rules file {filepath} truncated to {limit} chars")
         logger.info("Loaded project rules")
         return content
     except FileNotFoundError:
