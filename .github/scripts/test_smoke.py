@@ -126,6 +126,52 @@ def test_load_rules():
 
     print("All load_rules tests PASSED!\n")
 
+def test_schema_validation():
+    print("=== SCHEMA VALIDATION TESTS ===")
+
+    # Check if pydantic is available
+    try:
+        from pydantic import BaseModel, Field
+        from typing import List
+    except ImportError:
+        print("Skipping schema validation tests: pydantic not found")
+        return
+
+    class TestSchema(BaseModel):
+        name: str
+        age: int
+        tags: List[str] = Field(default_factory=list)
+
+    # Test 1: Valid schema
+    data = '{"name": "Alice", "age": 30, "tags": ["test"]}'
+    result = parse_json_response(data, schema=TestSchema)
+    assert result['name'] == "Alice"
+    assert result['age'] == 30
+    print("Test 1 PASSED: Valid schema")
+
+    # Test 2: Missing fields (should fail Pydantic and return raw dict)
+    data = '{"name": "Bob"}' # Missing age
+    result = parse_json_response(data, schema=TestSchema)
+    # It should return {"name": "Bob"} without age because validation fails
+    assert result['name'] == "Bob"
+    assert 'age' not in result
+    print("Test 2 PASSED: Invalid schema returns raw dict")
+
+    # Test 3: Defaults
+    data = '{"name": "Charlie", "age": 25}'
+    result = parse_json_response(data, schema=TestSchema)
+    assert result['tags'] == [] # Should be filled by default
+    print("Test 3 PASSED: Defaults applied")
+
+    # Test 4: Dict schema
+    dict_schema = {"name": str, "age": int}
+    data = '{"name": "Dave", "age": 40}'
+    result = parse_json_response(data, schema=dict_schema)
+    assert result['age'] == 40
+    print("Test 4 PASSED: Dict schema")
+
+    print("All schema validation tests PASSED!\n")
+
 if __name__ == "__main__":
     try:
         test_json_parsing()
@@ -133,9 +179,12 @@ if __name__ == "__main__":
         test_redaction()
         test_approval_logic()
         test_load_rules()
+        test_schema_validation()
         print("=" * 40)
         print("ALL SMOKE TESTS PASSED!")
         print("=" * 40)
     except Exception as e:
         print(f"TEST FAILED: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)

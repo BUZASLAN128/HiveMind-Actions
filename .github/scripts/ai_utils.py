@@ -15,7 +15,13 @@ import time
 import re
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Type
+
+try:
+    from pydantic import TypeAdapter, ValidationError
+except ImportError:
+    TypeAdapter = None
+    ValidationError = None
 
 # Configure logging
 logging.basicConfig(
@@ -199,9 +205,9 @@ def with_retry(func, max_retries: int = 3, base_delay: float = 1.0):
     raise last_exception
 
 
-def parse_json_response(text: str) -> Dict[str, Any]:
+def parse_json_response(text: str, schema: Optional[Any] = None) -> Dict[str, Any]:
     """
-    Robust JSON parsing with multiple fallback methods.
+    Robust JSON parsing with multiple fallback methods and optional schema validation.
     
     Methods:
         1. Direct parse
@@ -211,66 +217,115 @@ def parse_json_response(text: str) -> Dict[str, Any]:
     
     Args:
         text: Raw response text from AI model
+        schema: Optional schema for validation (Dict[str, Type] or Pydantic TypeAdapter/Model)
     
     Returns:
         Parsed JSON as dictionary
     
     Raises:
-        ValueError: If all parsing methods fail
+        ValueError: If parsing fails
+        TypeError: If schema validation fails
     """
     # Clean the text
     text = text.strip()
+    parsed_json = None
     
     # Method 1: Direct parse
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
+    if parsed_json is None:
+        try:
+            parsed_json = json.loads(text)
+        except json.JSONDecodeError:
+            pass
     
     # Method 2: Markdown extraction
-    json_text = text
-    if '```json' in text:
-        try:
-            json_text = text.split('```json')[1].split('```')[0].strip()
-            return json.loads(json_text)
-        except (IndexError, json.JSONDecodeError):
-            pass
-    elif '```' in text:
-        try:
-            json_text = text.split('```')[1].split('```')[0].strip()
-            return json.loads(json_text)
-        except (IndexError, json.JSONDecodeError):
-            pass
-    
+    if parsed_json is None:
+        json_text = text
+        if '```json' in text:
+            try:
+                json_text = text.split('```json')[1].split('```')[0].strip()
+                parsed_json = json.loads(json_text)
+            except (IndexError, json.JSONDecodeError):
+                pass
+        elif '```' in text:
+            try:
+                json_text = text.split('```')[1].split('```')[0].strip()
+                parsed_json = json.loads(json_text)
+            except (IndexError, json.JSONDecodeError):
+                pass
+
     # Method 3: Try json_repair if available
-    try:
-        import json_repair
-        repaired = json_repair.repair_json(text, return_objects=True)
-        if isinstance(repaired, dict):
-            return repaired
-    except ImportError:
-        logger.debug("json_repair not available, skipping")
-    except Exception:
-        pass
+    if parsed_json is None:
+        try:
+            import json_repair
+            repaired = json_repair.repair_json(text, return_objects=True)
+            if isinstance(repaired, dict):
+                parsed_json = repaired
+        except ImportError:
+            logger.debug("json_repair not available, skipping")
+        except Exception:
+            pass
     
     # Method 4: Regex extraction
-    match = re.search(r'\{[\s\S]*\}', text)
-    if match:
-        extracted = match.group(0)
-        try:
-            return json.loads(extracted)
-        except json.JSONDecodeError:
-            # Try repair on extracted JSON
+    if parsed_json is None:
+        match = re.search(r'\{[\s\S]*\}', text)
+        if match:
+            extracted = match.group(0)
             try:
-                import json_repair
-                repaired = json_repair.repair_json(extracted, return_objects=True)
-                if isinstance(repaired, dict):
-                    return repaired
-            except (ImportError, Exception):
-                pass
+                parsed_json = json.loads(extracted)
+            except json.JSONDecodeError:
+                # Try repair on extracted JSON
+                try:
+                    import json_repair
+                    repaired = json_repair.repair_json(extracted, return_objects=True)
+                    if isinstance(repaired, dict):
+                        parsed_json = repaired
+                except (ImportError, Exception):
+                    pass
     
-    # All methods failed
-    raise ValueError(f"Could not parse JSON from response. First 500 chars: {text[:500]}")
+    if parsed_json is None:
+        raise ValueError(f"Could not parse JSON from response. First 500 chars: {text[:500]}")
+
+    # Validation Logic
+    if schema:
+        # Pydantic validation (preferred)
+        if TypeAdapter and (isinstance(schema, type) or hasattr(schema, 'validate_python')):
+            try:
+                adapter = TypeAdapter(schema)
+                # Validate and return as dict (if it's a model)
+                validated = adapter.validate_python(parsed_json)
+                if hasattr(validated, 'model_dump'):
+                    return validated.model_dump()
+                elif hasattr(validated, 'dict'):
+                    return validated.dict()
+                return validated # Return as is if it's a dict or other type
+            except ValidationError as e:
+                logger.warning(f"Schema validation failed (Pydantic): {e}")
+                # Log warning but return parsed JSON to allow partial handling
+                pass
+
+        # Simple Dict[str, Type] validation
+        elif isinstance(schema, dict):
+            errors = []
+            for key, expected_type in schema.items():
+                if key not in parsed_json:
+                    errors.append(f"Missing key: {key}")
+                    continue
+
+                # Handle generic types (basic support)
+                check_type = expected_type
+                if hasattr(expected_type, '__origin__'):
+                    check_type = expected_type.__origin__
+
+                if isinstance(check_type, type) and not isinstance(parsed_json[key], check_type):
+                    # Allow int for float
+                    if check_type == float and isinstance(parsed_json[key], int):
+                        continue
+                    errors.append(f"Key '{key}' expected {expected_type}, got {type(parsed_json[key])}")
+
+            if errors:
+                logger.warning(f"Schema validation failed: {'; '.join(errors)}")
+
+    return parsed_json
 
 
 def redact_sensitive_data(text: str) -> str:
