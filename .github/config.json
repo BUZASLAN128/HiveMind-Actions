@@ -70,5 +70,10 @@
     "gemini": {
       "model": "gemini-2.0-flash"
     }
+  },
+  "reviewer": {
+    "min_score_approve": 8,
+    "min_score_conditional": 6,
+    "max_issues_conditional": 2
   }
 }
