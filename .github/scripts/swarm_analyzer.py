@@ -63,19 +63,25 @@ def get_codebase_context(
     extensions = extensions or DEFAULT_EXTENSIONS
     priority_dirs = priority_dirs or DEFAULT_PRIORITY_DIRS
     
+    # Prepare extensions for checking
+    valid_extensions = tuple(ext if ext.startswith('.') else f".{ext}" for ext in extensions)
+
     # Scan priority directories first
     for priority in priority_dirs:
         priority_path = root_dir / priority
         if priority_path.exists() and total_files < max_files:
-            for ext in extensions:
-                for file_path in priority_path.rglob(f"*{ext}"):
-                    if total_files >= max_files:
-                        break
+            # Optimized scan: Single traversal
+            for file_path in priority_path.rglob("*"):
+                if total_files >= max_files:
+                    break
+
+                if file_path.is_file() and file_path.name.endswith(valid_extensions):
                     try:
                         with file_path.open(encoding='utf-8') as f:
                             content = f.read(max_len)
                         relative_path = file_path.relative_to(root_dir)
-                        lang = ext[1:]  # Remove dot
+                        # Use suffix as language identifier (removing dot)
+                        lang = file_path.suffix[1:] if file_path.suffix else "txt"
                         context_parts.append(f"### {relative_path}\n```{lang}\n{content}\n```")
                         total_files += 1
                     except Exception as e:
