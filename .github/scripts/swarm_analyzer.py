@@ -12,8 +12,9 @@ Supports: GLM-4, Gemini (configurable via SWARM_MODEL_PROVIDER)
 import os
 import sys
 import json
+import concurrent.futures
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from ai_utils import (
     get_provider,
@@ -21,7 +22,8 @@ from ai_utils import (
     parse_json_response,
     with_retry,
     redact_sensitive_data,
-    logger
+    logger,
+    ttl_cache
 )
 
 # Configuration Constants
@@ -35,6 +37,7 @@ RESEARCH_KEYWORDS = [
 ]
 
 
+@ttl_cache(ttl=3600)
 def get_codebase_context(
     root_dir: Path,
     max_files: int = 20,
@@ -44,6 +47,7 @@ def get_codebase_context(
 ) -> str:
     """
     Collects codebase context by reading source files in the project root.
+    Uses threading for parallel file reading and os.walk for traversal.
 
     Args:
         root_dir: Project root directory.
@@ -57,31 +61,77 @@ def get_codebase_context(
     """
     logger.info(f"Reading codebase context from {root_dir}...")
     context_parts = []
-    total_files = 0
     
     # Use defaults if not provided
     extensions = extensions or DEFAULT_EXTENSIONS
     priority_dirs = priority_dirs or DEFAULT_PRIORITY_DIRS
     
+    found_files = []
+
+    # Helper to scan a directory
+    def scan_dir(start_dir: Path):
+        for root, _, files in os.walk(start_dir):
+            if len(found_files) >= max_files:
+                return
+            for file in files:
+                if len(found_files) >= max_files:
+                    return
+                if Path(file).suffix in extensions:
+                    found_files.append(Path(root) / file)
+
     # Scan priority directories first
     for priority in priority_dirs:
         priority_path = root_dir / priority
-        if priority_path.exists() and total_files < max_files:
-            for ext in extensions:
-                for file_path in priority_path.rglob(f"*{ext}"):
-                    if total_files >= max_files:
-                        break
-                    try:
-                        with file_path.open(encoding='utf-8') as f:
-                            content = f.read(max_len)
-                        relative_path = file_path.relative_to(root_dir)
-                        lang = ext[1:]  # Remove dot
-                        context_parts.append(f"### {relative_path}\n```{lang}\n{content}\n```")
-                        total_files += 1
-                    except Exception as e:
-                        logger.warning(f"Could not read {file_path}: {e}")
+        if priority_path.exists():
+            scan_dir(priority_path)
+        if len(found_files) >= max_files:
+            break
+
+    # If we need more files, scan root
+    if len(found_files) < max_files:
+        for root, dirs, files in os.walk(root_dir):
+            if len(found_files) >= max_files:
+                break
+
+            # Modify dirs in-place to skip hidden directories
+            dirs[:] = [d for d in dirs if not d.startswith('.')]
+
+            # Skip priority dirs as we already scanned them (if they are direct children)
+            rel_root = Path(root).relative_to(root_dir)
+            if str(rel_root) == '.':
+                 dirs[:] = [d for d in dirs if d not in priority_dirs and not d.startswith('.')]
+
+            for file in files:
+                if len(found_files) >= max_files:
+                    break
+
+                if Path(file).suffix in extensions:
+                    fpath = Path(root) / file
+                    if fpath not in found_files:
+                        found_files.append(fpath)
+
+    # Limit files (just in case)
+    files_to_read = found_files[:max_files]
+
+    def read_file(file_path: Path) -> str:
+        try:
+            with file_path.open(encoding='utf-8') as f:
+                content = f.read(max_len)
+            relative_path = file_path.relative_to(root_dir)
+            lang = file_path.suffix[1:]  # Remove dot
+            return f"### {relative_path}\n```{lang}\n{content}\n```"
+        except Exception as e:
+            logger.warning(f"Could not read {file_path}: {e}")
+            return ""
+
+    # Parallel read
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        results = list(executor.map(read_file, files_to_read))
+
+    # Filter empty results
+    context_parts = [r for r in results if r]
     
-    logger.info(f"Collected context from {total_files} files")
+    logger.info(f"Collected context from {len(context_parts)} files")
     return "\n".join(context_parts)
 
 

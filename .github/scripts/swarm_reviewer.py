@@ -16,6 +16,7 @@ Features:
 import os
 import sys
 import json
+import re
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
 
@@ -45,6 +46,27 @@ def get_diff_content(filepath: str = 'coder_changes.diff') -> str:
     except FileNotFoundError:
         logger.warning(f"Diff file not found: {filepath}")
         return "No changes found"
+
+
+def sanitize_diff(diff: str) -> str:
+    """
+    Sanitizes diff content to prevent prompt injection and formatting issues.
+
+    - Escapes triple backticks to avoid breaking markdown blocks
+    - Warns about suspicious patterns
+    """
+    # Escape triple backticks by replacing them with single quotes to avoid breaking prompt markdown
+    sanitized = diff.replace("```", "'''")
+
+    # Check for potential injection (basic heuristic)
+    injection_patterns = ["ignore previous instructions", "system prompt", "you are now"]
+    for pattern in injection_patterns:
+        if pattern in sanitized.lower():
+            logger.warning(f"Potential prompt injection detected: '{pattern}'")
+            # Case-insensitive replacement
+            sanitized = re.sub(pattern, "[SUSPICIOUS PATTERN REMOVED]", sanitized, flags=re.IGNORECASE)
+
+    return sanitized
 
 
 def load_rules(filepath: str = '.github/swarm_rules.md') -> str:
@@ -217,6 +239,9 @@ def main() -> None:
                 comment="No changes found to review."
             )
             return
+
+        # Sanitize diff content
+        diff_content = sanitize_diff(diff_content)
         
         # Load prompt and rules
         prompt_template = load_prompt_template(Path(".github/prompts/swarm_reviewer.prompt"))
