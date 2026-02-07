@@ -9,3 +9,4 @@ json-repair>=0.25.0
 
 # HTTP Requests (for OpenAI SDK)
 httpx>=0.25.0
+pydantic>=2.0.0

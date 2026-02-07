@@ -13,7 +13,8 @@ import os
 import sys
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
+from pydantic import BaseModel, Field
 
 from ai_utils import (
     get_provider,
@@ -24,6 +25,17 @@ from ai_utils import (
     logger,
     load_rules
 )
+
+class AnalysisResult(BaseModel):
+    """Schema for issue analysis results."""
+    should_proceed: bool = Field(default=False)
+    issue_type: str = Field(default='unclear')
+    coder_instructions: str = Field(default='')
+    plan: List[str] = Field(default_factory=list)
+    files_to_change: List[str] = Field(default_factory=list)
+    risks: List[str] = Field(default_factory=list)
+    analysis: str = Field(default='')
+    estimated_complexity: str = Field(default='unknown')
 
 # Configuration Constants
 DEFAULT_EXTENSIONS = {'.py', '.js', '.ts', '.jsx', '.tsx', '.go', '.rs', '.java'}
@@ -150,12 +162,12 @@ def analyze_issue(provider, prompt: str) -> Dict[str, Any]:
     
     def make_request():
         response = provider.generate(prompt)
-        return parse_json_response(response)
+        return parse_json_response(response, schema=AnalysisResult)
     
     # Use retry logic for robustness
     result = with_retry(make_request, max_retries=3)
     
-    # Validate required fields
+    # Safety net: Validate required fields even if schema validation failed
     required_fields = ['should_proceed', 'issue_type', 'coder_instructions']
     for field in required_fields:
         if field not in result:

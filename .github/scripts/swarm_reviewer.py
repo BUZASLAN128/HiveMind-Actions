@@ -17,7 +17,8 @@ import os
 import sys
 import json
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
+from pydantic import BaseModel, Field
 
 from ai_utils import (
     get_provider,
@@ -29,6 +30,17 @@ from ai_utils import (
     load_rules
 )
 
+class ReviewResult(BaseModel):
+    """Schema for code review results."""
+    approved: bool = Field(default=False)
+    score: int = Field(default=5)
+    verdict: str = Field(default='UNKNOWN')
+    project_compliance: bool = Field(default=False)
+    security_ok: bool = Field(default=True)
+    positives: List[str] = Field(default_factory=list)
+    issues: List[str] = Field(default_factory=list)
+    suggestions: List[str] = Field(default_factory=list)
+    labels: List[str] = Field(default_factory=list)
 
 def get_diff_content(filepath: str = 'coder_changes.diff') -> str:
     """
@@ -70,11 +82,11 @@ def generate_review(provider, prompt: str) -> Dict[str, Any]:
     
     def make_request():
         response = provider.generate(prompt)
-        return parse_json_response(response)
+        return parse_json_response(response, schema=ReviewResult)
     
     result = with_retry(make_request, max_retries=5)
     
-    # Validate and inject defaults for required keys
+    # Safety net: ensure required keys exist even if Pydantic validation failed or was partial
     defaults = {
         'approved': False,
         'score': 5,
