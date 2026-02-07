@@ -111,10 +111,29 @@ def calculate_approval(review_data: Dict[str, Any]) -> Tuple[bool, str]:
     Returns:
         Tuple of (approved: bool, reason: str)
     """
-    score = review_data.get('score', 0)
-    security_ok = review_data.get('security_ok', False)
-    project_compliance = review_data.get('project_compliance', False)
-    issues = review_data.get('issues', [])
+    # Safe extraction helpers
+    def get_score(data):
+        val = data.get("score")
+        if isinstance(val, (int, float)):
+            return val
+        return 0
+
+    def get_bool(data, key, default=False):
+        val = data.get(key)
+        if isinstance(val, bool):
+            return val
+        return default
+
+    def get_list(data, key):
+        val = data.get(key)
+        if isinstance(val, list):
+            return val
+        return []
+
+    score = get_score(review_data)
+    security_ok = get_bool(review_data, "security_ok", False)
+    project_compliance = get_bool(review_data, "project_compliance", False)
+    issues = get_list(review_data, "issues")
     
     # Critical: Security always first
     if not security_ok:
