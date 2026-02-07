@@ -25,6 +25,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Pre-compile regex patterns for sensitive data redaction
+SENSITIVE_DATA_PATTERNS = [
+    (re.compile(r'sk-[a-zA-Z0-9]{20,}'), '[REDACTED_OPENAI_KEY]'),
+    (re.compile(r'AIza[a-zA-Z0-9_-]{35}'), '[REDACTED_GOOGLE_KEY]'),
+    (re.compile(r'ghp_[a-zA-Z0-9]{36}'), '[REDACTED_GITHUB_TOKEN]'),
+    (re.compile(r'gho_[a-zA-Z0-9]{36}'), '[REDACTED_GITHUB_OAUTH]'),
+    (re.compile(r'xox[bap]-[a-zA-Z0-9-]{10,}'), '[REDACTED_SLACK_TOKEN]'),
+    (re.compile(r'(?i)(password|secret|key|token|auth)\s*[=:]\s*["\']?[a-zA-Z0-9_.@/-]{3,}["\']?'), r'\1=[REDACTED]'),
+    (re.compile(r'[a-zA-Z0-9._%+-]+:[a-zA-Z0-9._%+-]+@'), '[REDACTED_CREDS]@'),
+]
 
 class ModelProvider(ABC):
     """Abstract base class for AI model providers."""
@@ -223,15 +233,15 @@ def parse_json_response(text: str) -> Dict[str, Any]:
     
     # Method 2: Markdown extraction
     json_text = text
-    if '```json' in text:
+    if "```json" in text:
         try:
-            json_text = text.split('```json')[1].split('```')[0].strip()
+            json_text = text.split("```json")[1].split("```")[0].strip()
             return json.loads(json_text)
         except (IndexError, json.JSONDecodeError):
             pass
-    elif '```' in text:
+    elif "```" in text:
         try:
-            json_text = text.split('```')[1].split('```')[0].strip()
+            json_text = text.split("```")[1].split("```")[0].strip()
             return json.loads(json_text)
         except (IndexError, json.JSONDecodeError):
             pass
@@ -276,19 +286,9 @@ def redact_sensitive_data(text: str) -> str:
         - Passwords and secrets
         - Database credentials in URLs
     """
-    patterns = [
-        (r'sk-[a-zA-Z0-9]{20,}', '[REDACTED_OPENAI_KEY]'),
-        (r'AIza[a-zA-Z0-9_-]{35}', '[REDACTED_GOOGLE_KEY]'),
-        (r'ghp_[a-zA-Z0-9]{36}', '[REDACTED_GITHUB_TOKEN]'),
-        (r'gho_[a-zA-Z0-9]{36}', '[REDACTED_GITHUB_OAUTH]'),
-        (r'xox[bap]-[a-zA-Z0-9-]{10,}', '[REDACTED_SLACK_TOKEN]'),
-        (r'(?i)(password|secret|key|token|auth)\s*[=:]\s*["\']?[a-zA-Z0-9_.@/-]{3,}["\']?', r'\1=[REDACTED]'),
-        (r'[a-zA-Z0-9._%+-]+:[a-zA-Z0-9._%+-]+@', '[REDACTED_CREDS]@'),
-    ]
-    
     result = text
-    for pattern, replacement in patterns:
-        result = re.sub(pattern, replacement, result)
+    for pattern, replacement in SENSITIVE_DATA_PATTERNS:
+        result = pattern.sub(replacement, result)
     
     return result
 
