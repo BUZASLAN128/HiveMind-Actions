@@ -94,7 +94,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install google-genai
+        run: pip install -r .github/requirements.txt
 
       - name: Get Diff (Smart Switch)
         id: diff
@@ -234,9 +234,11 @@ jobs:
             echo "RULES=No specific rules found." >> $GITHUB_ENV
           fi
 
-      - name: Run Gemini Review
+      - name: Run AI Review
         id: review
         env:
+          SWARM_MODEL_PROVIDER: ${{ vars.SWARM_MODEL_PROVIDER || 'glm' }}
+          GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           # Run swarm_reviewer.py script

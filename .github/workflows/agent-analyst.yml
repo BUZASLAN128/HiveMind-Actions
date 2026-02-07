@@ -43,7 +43,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install google-genai
+        run: pip install -r .github/requirements.txt
 
       - name: Acknowledge & Setup Status
         id: setup
@@ -133,9 +133,11 @@ jobs:
             if (issueNumber) core.setOutput('issue_number', String(issueNumber));
             if (commitId) core.setOutput('commit_id', String(commitId));
 
-      - name: Run Gemini Analysis
+      - name: Run AI Analysis
         id: analysis
         env:
+          SWARM_MODEL_PROVIDER: ${{ vars.SWARM_MODEL_PROVIDER || 'glm' }}
+          GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ISSUE_NUMBER: ${{ github.event.issue.number || '0' }}
           ISSUE_TITLE: ${{ github.event.issue.title || 'Commit Comment Request' }}
