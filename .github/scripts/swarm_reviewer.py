@@ -34,13 +34,14 @@ def get_diff_content(filepath: str = 'coder_changes.diff') -> str:
     Reads the diff content from the specified file path.
     Truncates large diffs and adds notice.
     """
+    limit = 30000
     try:
-        content = Path(filepath).read_text(encoding="utf-8")
-        limit = 30000
-        if len(content) > limit:
-            logger.warning(f"Diff truncated from {len(content)} to {limit} chars")
-            return content[:limit] + "\n\n... [DIFF TRUNCATED DUE TO SIZE LIMIT] ..."
-        return content
+        with open(filepath, 'r', encoding="utf-8") as f:
+            content = f.read(limit + 1)
+            if len(content) > limit:
+                logger.warning(f"Diff truncated because it exceeds {limit} chars")
+                return content[:limit] + "\n\n... [DIFF TRUNCATED DUE TO SIZE LIMIT] ..."
+            return content
     except FileNotFoundError:
         logger.warning(f"Diff file not found: {filepath}")
         return "No changes found"
