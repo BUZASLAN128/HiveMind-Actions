@@ -28,6 +28,12 @@ from ai_utils import (
 DEFAULT_EXTENSIONS = {'.py', '.js', '.ts', '.jsx', '.tsx', '.go', '.rs', '.java'}
 DEFAULT_PRIORITY_DIRS = ['app', 'src', 'lib', 'core']
 
+# Research mode keywords - triggers codebase analysis even for unclear issues
+RESEARCH_KEYWORDS = [
+    'incele', 'arastir', 'analiz', 'oneriler', 'gelistirme', 'iyilestirme',
+    'research', 'analyze', 'suggest', 'improve', 'review', 'audit'
+]
+
 
 def get_codebase_context(
     root_dir: Path,
@@ -88,6 +94,25 @@ def load_rules(filepath: str = '.github/swarm_rules.md') -> str:
     except FileNotFoundError:
         logger.warning("No project rules found, using defaults")
         return "No project rules found. Apply general Clean Code principles."
+
+
+def is_research_request(issue_data: Dict[str, Any]) -> bool:
+    """
+    Checks if the issue/comment requests a research/analysis mode.
+    
+    Args:
+        issue_data: Dictionary with issue details
+        
+    Returns:
+        True if this is a research request
+    """
+    text = (
+        issue_data.get('title', '') + ' ' + 
+        issue_data.get('body', '') + ' ' + 
+        issue_data.get('comment', '')
+    ).lower()
+    
+    return any(keyword in text for keyword in RESEARCH_KEYWORDS)
 
 
 def build_prompt(prompt_template: str, issue_data: Dict[str, Any], context: str, rules: str) -> str:
@@ -176,7 +201,7 @@ def write_outputs(data: Dict[str, Any]) -> None:
     plan_list = "\n".join([f"{i}. {s}" for i, s in enumerate(data.get('plan', []), 1)]) or "- (No plan)"
     risks_list = ', '.join(data.get('risks', ['None']))
     
-    type_emoji = {"code_request": "🛠️", "question": "❓", "unclear": "⚠️"}.get(issue_type, "📋")
+    type_emoji = {"code_request": "🛠️", "question": "❓", "research": "🔬", "unclear": "⚠️"}.get(issue_type, "📋")
     
     summary = f"""## Gemini Analysis Report
 
@@ -213,18 +238,60 @@ def main() -> None:
         
         logger.info(f"Starting analysis for Issue #{issue_data['number']}: '{issue_data['title']}'...")
         
-        # Build context
+        # Check if this is a research request
+        research_mode = is_research_request(issue_data)
+        if research_mode:
+            logger.info("Research mode detected - will analyze codebase for improvements")
+        
+        # Build context - for research mode, get more files
         project_root = Path.cwd()
-        codebase_context = get_codebase_context(project_root)
+        max_files = 50 if research_mode else 20
+        codebase_context = get_codebase_context(project_root, max_files=max_files)
         rules = load_rules()
+        
+        # For research mode, enhance the prompt with research instructions
+        if research_mode and not codebase_context.strip():
+            # Force scan all code files if priorit dirs are empty
+            logger.info("Priority dirs empty, scanning root for source files...")
+            codebase_context = get_codebase_context(
+                project_root, 
+                max_files=50, 
+                priority_dirs=['.github/scripts', '.github/workflows', '.']
+            )
         
         # Load and format prompt
         prompt_path = project_root / ".github" / "prompts" / "swarm_analyzer.prompt"
         prompt_template = load_prompt_template(prompt_path)
-        formatted_prompt = build_prompt(prompt_template, issue_data, codebase_context, rules)
+        
+        # For research mode, add extra context to prompt
+        if research_mode:
+            research_instruction = """
+## RESEARCH MODE ACTIVE
+The user wants you to analyze this codebase and suggest improvements.
+Even if the request is vague, you SHOULD proceed with should_proceed=true.
+Set issue_type to "research" and provide:
+- Code quality improvements
+- Missing features that would be valuable
+- Security enhancements
+- Performance optimizations
+- Best practices that are not followed
+
+DO NOT reject this as unclear. Analyze and provide actionable suggestions.
+"""
+            formatted_prompt = build_prompt(prompt_template, issue_data, codebase_context, rules)
+            formatted_prompt = research_instruction + "\n" + formatted_prompt
+        else:
+            formatted_prompt = build_prompt(prompt_template, issue_data, codebase_context, rules)
         
         # Analyze
         analysis_data = analyze_issue(provider, formatted_prompt)
+        
+        # For research mode, force should_proceed if AI still says no
+        if research_mode and not analysis_data.get('should_proceed', False):
+            logger.info("Research mode: overriding should_proceed to True")
+            analysis_data['should_proceed'] = True
+            analysis_data['issue_type'] = 'research'
+        
         write_outputs(analysis_data)
         
         should_proceed = analysis_data.get('should_proceed', False)

@@ -40,7 +40,7 @@ IMPORTANT: You MUST output ONLY valid JSON. No markdown, no explanation, no code
 
 ## Field Descriptions:
 - should_proceed: boolean - true if this can be automated, false if needs human
-- issue_type: "code_request" | "question" | "unclear"
+- issue_type: "code_request" | "question" | "research" | "unclear"
 - analysis: string - Brief summary (max 200 characters)
 - files_to_change: array of file paths that need modification
 - plan: array of implementation steps
