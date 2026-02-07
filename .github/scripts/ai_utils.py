@@ -183,6 +183,12 @@ def with_retry(func, max_retries: int = 3, base_delay: float = 1.0):
             
             # Exponential backoff: 1s, 2s, 4s...
             delay = base_delay * (2 ** attempt)
+
+            # Special handling for Rate Limit (429) errors
+            error_msg = str(e).lower()
+            if "rate limit" in error_msg or "429" in error_msg:
+                delay = max(delay, 5.0)  # Force at least 5s wait for rate limits
+                logger.warning(f"Rate limit detected. Increasing delay to {delay:.2f}s")
             # Jitter: +/- 25%
             jitter = delay * 0.25 * (random.random() * 2 - 1)
             sleep_time = max(0.1, delay + jitter)
