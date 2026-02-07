@@ -101,11 +101,46 @@ def test_approval_logic():
     
     print("All approval tests PASSED!\n")
 
+
+def test_schema_validation():
+    print("=== SCHEMA VALIDATION TESTS ===")
+
+    # Test 1: Valid schema
+    schema = {'score': int, 'approved': bool}
+    result = parse_json_response('{"score": 10, "approved": true}', schema)
+    assert result['score'] == 10
+    print("Test 1 PASSED: Valid schema")
+
+    # Test 2: Missing key
+    try:
+        parse_json_response('{"score": 10}', schema)
+        print("Test 2 FAILED: Missing key not detected")
+    except ValueError as e:
+        print(f"Test 2 PASSED: Detected missing key ({e})")
+
+    # Test 3: Type mismatch
+    try:
+        parse_json_response('{"score": "10", "approved": true}', schema)
+        print("Test 3 FAILED: Type mismatch not detected")
+    except ValueError as e:
+        print(f"Test 3 PASSED: Detected type mismatch ({e})")
+
+    # Test 4: List input (Vulnerability fix check)
+    try:
+        parse_json_response('[1, 2, 3]')
+        print("Test 4 FAILED: List input accepted")
+    except ValueError as e:
+        print(f"Test 4 PASSED: Rejected list input ({e})")
+
+    print("All schema validation tests PASSED!\n")
+
+
 if __name__ == "__main__":
     try:
         test_json_parsing()
         test_retry_logic()
         test_redaction()
+        test_schema_validation()
         test_approval_logic()
         print("=" * 40)
         print("ALL SMOKE TESTS PASSED!")

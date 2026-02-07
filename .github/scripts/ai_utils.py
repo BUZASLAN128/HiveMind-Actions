@@ -193,7 +193,29 @@ def with_retry(func, max_retries: int = 3, base_delay: float = 1.0):
     raise last_exception
 
 
-def parse_json_response(text: str) -> Dict[str, Any]:
+
+def _validate_response(data: Any, schema: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    Validates that the parsed data is a dictionary and optionally conforms to a schema.
+    """
+    if not isinstance(data, dict):
+        raise ValueError(f"Parsed JSON must be a dictionary, got {type(data).__name__}")
+
+    if schema:
+        missing_keys = [k for k in schema if k not in data]
+        if missing_keys:
+            raise ValueError(f"Missing required keys: {', '.join(missing_keys)}")
+
+        for key, expected_type in schema.items():
+            if isinstance(expected_type, type):
+                if key in data and not isinstance(data[key], expected_type):
+                    # Strict type checking
+                    raise ValueError(f"Key '{key}' expected type {expected_type.__name__}, got {type(data[key]).__name__}")
+
+    return data
+
+
+def parse_json_response(text: str, schema: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Robust JSON parsing with multiple fallback methods.
     
@@ -205,6 +227,7 @@ def parse_json_response(text: str) -> Dict[str, Any]:
     
     Args:
         text: Raw response text from AI model
+        schema: Optional dictionary defining expected keys and types
     
     Returns:
         Parsed JSON as dictionary
@@ -217,7 +240,7 @@ def parse_json_response(text: str) -> Dict[str, Any]:
     
     # Method 1: Direct parse
     try:
-        return json.loads(text)
+        return _validate_response(json.loads(text), schema)
     except json.JSONDecodeError:
         pass
     
@@ -226,13 +249,13 @@ def parse_json_response(text: str) -> Dict[str, Any]:
     if '```json' in text:
         try:
             json_text = text.split('```json')[1].split('```')[0].strip()
-            return json.loads(json_text)
+            return _validate_response(json.loads(json_text), schema)
         except (IndexError, json.JSONDecodeError):
             pass
     elif '```' in text:
         try:
             json_text = text.split('```')[1].split('```')[0].strip()
-            return json.loads(json_text)
+            return _validate_response(json.loads(json_text), schema)
         except (IndexError, json.JSONDecodeError):
             pass
     
@@ -241,7 +264,7 @@ def parse_json_response(text: str) -> Dict[str, Any]:
         import json_repair
         repaired = json_repair.repair_json(text, return_objects=True)
         if isinstance(repaired, dict):
-            return repaired
+            return _validate_response(repaired, schema)
     except ImportError:
         logger.debug("json_repair not available, skipping")
     except Exception:
@@ -252,14 +275,14 @@ def parse_json_response(text: str) -> Dict[str, Any]:
     if match:
         extracted = match.group(0)
         try:
-            return json.loads(extracted)
+            return _validate_response(json.loads(extracted), schema)
         except json.JSONDecodeError:
             # Try repair on extracted JSON
             try:
                 import json_repair
                 repaired = json_repair.repair_json(extracted, return_objects=True)
                 if isinstance(repaired, dict):
-                    return repaired
+                    return _validate_response(repaired, schema)
             except (ImportError, Exception):
                 pass
     
