@@ -28,7 +28,9 @@ from ai_utils import (
     redact_sensitive_data,
     logger,
     load_rules,
-    MAX_DIFF_READ_LIMIT
+    MAX_DIFF_READ_LIMIT,
+    get_config,
+    metrics
 )
 
 class ReviewResult(BaseModel):
@@ -111,11 +113,11 @@ def calculate_approval(review_data: Dict[str, Any]) -> Tuple[bool, str]:
     """
     Flexible approval logic based on score and security.
 
-    Approval Rules:
+    Approval Rules (Configurable):
     - Security issues: Always reject
-    - Score >= 8: Approve (minor suggestions ok)
-    - Score 6-7: Approve if compliant and <= 2 issues
-    - Score < 6: Reject
+    - Score >= min_score_approve (default 8): Approve
+    - Score >= min_score_conditional (default 6): Approve if compliant and <= max_issues_conditional (default 2)
+    - Otherwise: Reject
 
     Args:
         review_data: Review JSON from AI
@@ -123,6 +125,11 @@ def calculate_approval(review_data: Dict[str, Any]) -> Tuple[bool, str]:
     Returns:
         Tuple of (approved: bool, reason: str)
     """
+    # Load thresholds from config
+    min_approve = get_config('reviewer.min_score_approve', 8)
+    min_conditional = get_config('reviewer.min_score_conditional', 6)
+    max_issues = get_config('reviewer.max_issues_conditional', 2)
+
     # Safe extraction helpers
     def get_score(data):
         val = data.get("score")
@@ -152,12 +159,12 @@ def calculate_approval(review_data: Dict[str, Any]) -> Tuple[bool, str]:
         return False, "Security issues detected - immediate attention required"
     
     # High score: approve with suggestions
-    if score >= 8:
+    if score >= min_approve:
         return True, "Approved - excellent quality"
     
     # Medium score: conditional approval
-    if 6 <= score < 8:
-        if project_compliance and len(issues) <= 2:
+    if min_conditional <= score < min_approve:
+        if project_compliance and len(issues) <= max_issues:
             return True, f"Approved with {len(issues)} minor issues to address"
         return False, f"Score {score}/10 with {len(issues)} issues - improvements needed"
     
@@ -230,6 +237,7 @@ def main() -> None:
     """Main function: reads diff, generates review, outputs results."""
     try:
         logger.info("Starting code review process...")
+        metrics.reset()
         
         # Get provider
         provider = get_provider()
@@ -261,6 +269,7 @@ def main() -> None:
         write_outputs(approved, comment, labels)
         
         logger.info(f"Review completed! Approved: {approved} ({reason})")
+        logger.info(f"Metrics: {metrics.summary()}")
     
     except ValueError as e:
         logger.error(f"Parsing error: {e}")
@@ -268,6 +277,7 @@ def main() -> None:
             approved=False,
             comment=f"Error during review: {e}"
         )
+        logger.info(f"Metrics: {metrics.summary()}")
         sys.exit(1)
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
@@ -275,6 +285,7 @@ def main() -> None:
             approved=False,
             comment=f"Critical error during review: {e}"
         )
+        logger.info(f"Metrics: {metrics.summary()}")
         sys.exit(1)
 
 

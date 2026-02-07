@@ -24,7 +24,9 @@ from ai_utils import (
     redact_sensitive_data,
     logger,
     load_rules,
-    MAX_RULES_READ_LIMIT
+    MAX_RULES_READ_LIMIT,
+    get_config,
+    metrics
 )
 
 class AnalysisResult(BaseModel):
@@ -82,10 +84,16 @@ def get_codebase_context(
     context_parts = []
     total_files = 0
     
-    # Use defaults if not provided
-    extensions = extensions or DEFAULT_EXTENSIONS
-    priority_dirs = priority_dirs or DEFAULT_PRIORITY_DIRS
-    exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
+    # Use defaults from config or constants
+    if not extensions:
+        config_ext = get_config('extensions')
+        extensions = set(config_ext) if config_ext else DEFAULT_EXTENSIONS
+
+    if not priority_dirs:
+        priority_dirs = get_config('priority_dirs', DEFAULT_PRIORITY_DIRS)
+
+    if not exclude_patterns:
+        exclude_patterns = get_config('exclude_patterns', DEFAULT_EXCLUDE_PATTERNS)
     
     # Prepare extensions for checking
     valid_extensions = tuple(ext if ext.startswith('.') else f".{ext}" for ext in extensions)
@@ -182,7 +190,23 @@ def is_research_request(issue_data: Dict[str, Any]) -> bool:
         issue_data.get('comment', '')
     ).lower()
     
-    return any(keyword in text for keyword in RESEARCH_KEYWORDS)
+    # Load keywords from config
+    keywords_config = get_config('research_keywords', {})
+
+    # Flatten values if dict (en/tr lists), or use list if direct list
+    keywords = []
+    if isinstance(keywords_config, dict):
+        for kw_list in keywords_config.values():
+            if isinstance(kw_list, list):
+                keywords.extend(kw_list)
+    elif isinstance(keywords_config, list):
+        keywords = keywords_config
+
+    # Fallback to constants if config empty
+    if not keywords:
+         keywords = RESEARCH_KEYWORDS
+
+    return any(keyword.lower() in text for keyword in keywords)
 
 
 def build_prompt(prompt_template: str, issue_data: Dict[str, Any], context: str, rules: str) -> str:
@@ -295,6 +319,8 @@ def write_outputs(data: Dict[str, Any]) -> None:
 def main() -> None:
     """Main function: analyzes the issue, creates a plan, and saves results."""
     try:
+        metrics.reset()
+
         # Get AI provider
         provider = get_provider()
         
@@ -315,7 +341,9 @@ def main() -> None:
         
         # Build context - for research mode, get more files
         project_root = Path.cwd()
-        max_files = 50 if research_mode else 20
+        # Use config for max_files default
+        default_max_files = get_config('limits.max_files_context', 20)
+        max_files = 50 if research_mode else default_max_files
         codebase_context = get_codebase_context(project_root, max_files=max_files)
         rules = load_rules()
         
@@ -366,6 +394,7 @@ DO NOT reject this as unclear. Analyze and provide actionable suggestions.
         
         should_proceed = analysis_data.get('should_proceed', False)
         logger.info(f"Analysis complete! Should proceed: {should_proceed}")
+        logger.info(f"Metrics: {metrics.summary()}")
         
         if not should_proceed:
             logger.warning("AI decided this issue cannot be resolved automatically.")
@@ -379,9 +408,11 @@ DO NOT reject this as unclear. Analyze and provide actionable suggestions.
             'analysis': str(e),
             'coder_instructions': 'Error occurred during analysis.'
         })
+        logger.info(f"Metrics: {metrics.summary()}")
         sys.exit(1)
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
+        logger.info(f"Metrics: {metrics.summary()}")
         sys.exit(1)
 
 
