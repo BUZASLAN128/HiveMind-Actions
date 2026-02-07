@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Smoke tests for HiveMind AI Utils"""
 import sys
+import os
 sys.path.insert(0, '.')
 
-from ai_utils import parse_json_response, with_retry, redact_sensitive_data
+from ai_utils import parse_json_response, with_retry, redact_sensitive_data, load_rules
 
 def test_json_parsing():
     print("=== JSON PARSING TESTS ===")
@@ -101,12 +102,37 @@ def test_approval_logic():
     
     print("All approval tests PASSED!\n")
 
+def test_load_rules():
+    print("=== LOAD RULES TESTS ===")
+
+    # Test 1: File exists
+    dummy_file = "dummy_rules.md"
+    dummy_content = "Rule 1: Be cool."
+    with open(dummy_file, "w") as f:
+        f.write(dummy_content)
+
+    try:
+        content = load_rules(dummy_file)
+        assert content == dummy_content
+        print("Test 1 PASSED: File loaded successfully")
+    finally:
+        if os.path.exists(dummy_file):
+            os.remove(dummy_file)
+
+    # Test 2: File missing
+    content = load_rules("non_existent_rules.md")
+    assert "No project rules found" in content
+    print("Test 2 PASSED: Missing file handled gracefully")
+
+    print("All load_rules tests PASSED!\n")
+
 if __name__ == "__main__":
     try:
         test_json_parsing()
         test_retry_logic()
         test_redaction()
         test_approval_logic()
+        test_load_rules()
         print("=" * 40)
         print("ALL SMOKE TESTS PASSED!")
         print("=" * 40)
