@@ -18,7 +18,7 @@
 <p align="center">
   <a href="https://github.com/BUZASLAN128/HiveMind-Actions/actions"><b>View Actions</b></a> |
   <a href="https://github.com/BUZASLAN128/HiveMind-Actions/pull/89"><b>See Self-Correction PoC</b></a> |
-  <a href="https://github.com/BUZASLAN128/HiveMind-Actions/issues/91"><b>See Push Security PoC</b></a> |
+  <a href="https://github.com/BUZASLAN128/HiveMind-Actions/issues/76"><b>See Push Review PoC</b></a> |
   <a href="https://github.com/BUZASLAN128/HiveMind-Actions/releases"><b>Releases</b></a>
 </p>
 
@@ -49,9 +49,11 @@ HiveMind turns GitHub events into an autonomous delivery loop:
 
 ### Verified push-level critical detection
 
-- Issue #91: https://github.com/BUZASLAN128/HiveMind-Actions/issues/91
-- Issue #92: https://github.com/BUZASLAN128/HiveMind-Actions/issues/92
 - Issue #76: https://github.com/BUZASLAN128/HiveMind-Actions/issues/76
+- Issue #75: https://github.com/BUZASLAN128/HiveMind-Actions/issues/75
+- Issue #11: https://github.com/BUZASLAN128/HiveMind-Actions/issues/11
+
+Note: examples above are selected from reviewer findings with real code-review output (not balance/quota failures).
 
 ### Additional delivery examples
 
