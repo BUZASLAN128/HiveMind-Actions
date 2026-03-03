@@ -25,6 +25,64 @@ HiveMind Actions turns a repository into an autonomous collaboration flow:
 - Reviewer checks code quality, security, and project rules.
 - Reviewer can trigger self-correction when PR quality is insufficient.
 
+## Visual Flow
+
+```mermaid
+flowchart LR
+    U[User opens issue and comments @analyst] --> A[Analyst]
+    A -->|workflow_dispatch| C[Coder]
+    C --> PR[Pull Request]
+    PR --> R[Reviewer]
+    R -->|Approved| M[Merge Ready]
+    R -->|Rejected| L[Self-Correction Loop]
+    L --> C
+
+    classDef actor fill:#E8F0FE,stroke:#1A73E8,color:#0B1F44;
+    classDef bot fill:#E6F4EA,stroke:#137333,color:#0B3D20;
+    classDef gate fill:#FEF7E0,stroke:#B06000,color:#5A3200;
+    classDef done fill:#F3E8FD,stroke:#9334E6,color:#4A1F75;
+
+    class U actor;
+    class A,C,R bot;
+    class PR,L gate;
+    class M done;
+```
+
+## Reliability and Retry Model
+
+| Component | Retry Strategy | Max Retry | Backoff | Notes |
+|---|---|---|---|---|
+| Core retry helper (`ai_utils.with_retry`) | Exponential + jitter | 3 (default) | `base_delay=1.0s` | Rate-limit aware (minimum `5s` delay on 429-like errors) |
+| Analyzer model call (`swarm_analyzer.py`) | Uses core helper | 3 | Exponential | Fails hard after all attempts |
+| Reviewer model call (`swarm_reviewer.py`) | Uses core helper | 5 | Exponential | More aggressive retry for review stability |
+| Reviewer self-correction loop (`agent-reviewer.yml`) | Loop guard | 5 | Per-review cycle | Stops loop and asks human intervention after limit |
+| Config baseline (`.github/config.json`) | Shared defaults | 3 | `base_delay=1.0s` | Includes `rate_limit_delay=5.0s` |
+
+## Exit and Failure Semantics
+
+| Layer | Success | Failure Exit/Status | What happens next |
+|---|---|---|---|
+| Python scripts (`swarm_analyzer.py`, `swarm_reviewer.py`) | process exit `0` | `sys.exit(1)` on fatal parse/runtime/config errors | Workflow step fails and error is logged |
+| Workflow jobs | Green check | Red failed step/job | GitHub Actions marks run failed |
+| Self-correction loop | PR converges | Rejected 5 times or missing session/key | Loop stops, issue/PR comment requests manual action |
+
+## Error Recovery Design
+
+```mermaid
+flowchart TD
+    S[Review failed] --> K{JULES_API_KEY present?}
+    K -- No --> E1[Post failure comment: missing key]
+    K -- Yes --> Q{Session ID found?}
+    Q -- No --> E2[Post continuity failure<br/>manual trigger required]
+    Q -- Yes --> T[Send feedback to Jules API]
+    T --> O{API call OK?}
+    O -- No --> E3[Post API failure details]
+    O -- Yes --> N[Post loop progress comment]
+    N --> R{Retry count < 5?}
+    R -- Yes --> W[Wait for next PR update and re-review]
+    R -- No --> E4[Stop loop and request human check]
+```
+
 ## 1-Minute Quickstart
 
 1. Copy these paths into your repository:
@@ -108,6 +166,7 @@ Recommended release content:
 
 - Verify `GLM_API_KEY` or `GEMINI_API_KEY` based on `SWARM_MODEL_PROVIDER`.
 - Verify `JULES_API_KEY` exists for coder/reviewer handoff.
+- If reviewer self-correction is expected, `JULES_API_KEY` is mandatory.
 
 ### Analyst does not trigger
 
@@ -124,6 +183,7 @@ Recommended release content:
 - Confirm `JULES_API_KEY` is configured.
 - Confirm PR body/comments contain expected session markers.
 - Check reviewer logs for continuity lookup and API call errors.
+- Check whether retry ceiling is reached (`Max retries (5) reached` log/comment).
 
 ## FAQ
 
