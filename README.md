@@ -1,214 +1,161 @@
 # HiveMind Actions
 
-Serverless multi-agent automation for GitHub Actions: Analyst plans, Coder implements, Reviewer verifies, and self-correction closes the loop.
+> Turn GitHub into an AI team: **Analyst plans**, **Coder builds**, **Reviewer protects quality**.
+
+HiveMind Actions is a serverless multi-agent workflow for repositories that want faster delivery with automated review and self-correction.
 
 ## Quick Links
 
 - Repository: https://github.com/BUZASLAN128/HiveMind-Actions
 - Actions: https://github.com/BUZASLAN128/HiveMind-Actions/actions
+- Releases: https://github.com/BUZASLAN128/HiveMind-Actions/releases
+- Latest Tag: https://github.com/BUZASLAN128/HiveMind-Actions/releases/tag/v2.1.1
 - Analyst Workflow: https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-analyst.yml
 - Coder Workflow: https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-coder.yml
 - Reviewer Workflow: https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-reviewer.yml
-- Releases: https://github.com/BUZASLAN128/HiveMind-Actions/releases
-- Latest Tag: https://github.com/BUZASLAN128/HiveMind-Actions/releases/tag/v2.1.1
 
 [![Analyst Workflow](https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-analyst.yml/badge.svg)](https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-analyst.yml)
 [![Coder Workflow](https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-coder.yml/badge.svg)](https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-coder.yml)
 [![Reviewer Workflow](https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-reviewer.yml/badge.svg)](https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-reviewer.yml)
 
-## What It Does
+## Why Teams Like It
 
-HiveMind Actions turns a repository into an autonomous collaboration flow:
+- **Productivity:** Analyst-to-Coder handoff is automated.
+- **Quality:** Reviewer checks every PR and blocks bad changes.
+- **Security:** Push-level Beast Mode can create critical issues automatically.
+- **Continuity:** Self-correction loop tries to fix rejected PRs before humans step in.
 
-- Analyst converts issue intent into implementable plans.
-- Coder executes the plan and opens/updates PRs.
-- Reviewer checks code quality, security, and project rules.
-- Reviewer can trigger self-correction when PR quality is insufficient.
-
-## Visual Flow
+## How It Works (Simple)
 
 ```mermaid
 flowchart LR
-    U[User opens issue and comments @analyst] --> A[Analyst]
-    A -->|workflow_dispatch| C[Coder]
+    U[Developer or Maintainer] --> I[Issue + @analyst]
+    I --> A[Analyst Workflow]
+    A --> C[Coder Workflow]
     C --> PR[Pull Request]
-    PR --> R[Reviewer]
-    R -->|Approved| M[Merge Ready]
-    R -->|Rejected| L[Self-Correction Loop]
+    PR --> R[Reviewer Workflow]
+    R -->|Approved| M[Ready to Merge]
+    R -->|Rejected| L[Auto Fix Loop]
     L --> C
-
-    classDef actor fill:#E8F0FE,stroke:#1A73E8,color:#0B1F44;
-    classDef bot fill:#E6F4EA,stroke:#137333,color:#0B3D20;
-    classDef gate fill:#FEF7E0,stroke:#B06000,color:#5A3200;
-    classDef done fill:#F3E8FD,stroke:#9334E6,color:#4A1F75;
-
-    class U actor;
-    class A,C,R bot;
-    class PR,L gate;
-    class M done;
 ```
 
-## Reliability and Retry Model
+## Auto Review on Every Push (Beast Mode)
 
-| Component | Retry Strategy | Max Retry | Backoff | Notes |
-|---|---|---|---|---|
-| Core retry helper (`ai_utils.with_retry`) | Exponential + jitter | 3 (default) | `base_delay=1.0s` | Rate-limit aware (minimum `5s` delay on 429-like errors) |
-| Analyzer model call (`swarm_analyzer.py`) | Uses core helper | 3 | Exponential | Fails hard after all attempts |
-| Reviewer model call (`swarm_reviewer.py`) | Uses core helper | 5 | Exponential | More aggressive retry for review stability |
-| Reviewer self-correction loop (`agent-reviewer.yml`) | Loop guard | 5 | Per-review cycle | Stops loop and asks human intervention after limit |
-| Config baseline (`.github/config.json`) | Shared defaults | 3 | `base_delay=1.0s` | Includes `rate_limit_delay=5.0s` |
-
-## Exit and Failure Semantics
-
-| Layer | Success | Failure Exit/Status | What happens next |
-|---|---|---|---|
-| Python scripts (`swarm_analyzer.py`, `swarm_reviewer.py`) | process exit `0` | `sys.exit(1)` on fatal parse/runtime/config errors | Workflow step fails and error is logged |
-| Workflow jobs | Green check | Red failed step/job | GitHub Actions marks run failed |
-| Self-correction loop | PR converges | Rejected 5 times or missing session/key | Loop stops, issue/PR comment requests manual action |
-
-## Error Recovery Design
+Reviewer also runs on `push` (all branches), not only PRs.
 
 ```mermaid
 flowchart TD
-    S[Review failed] --> K{JULES_API_KEY present?}
-    K -- No --> E1[Post failure comment: missing key]
-    K -- Yes --> Q{Session ID found?}
-    Q -- No --> E2[Post continuity failure<br/>manual trigger required]
-    Q -- Yes --> T[Send feedback to Jules API]
-    T --> O{API call OK?}
-    O -- No --> E3[Post API failure details]
-    O -- Yes --> N[Post loop progress comment]
-    N --> R{Retry count < 5?}
-    R -- Yes --> W[Wait for next PR update and re-review]
-    R -- No --> E4[Stop loop and request human check]
+    P[Push Event] --> RV[Reviewer Scan]
+    RV --> D{Critical issue?}
+    D -- No --> OK[No action needed]
+    D -- Yes --> IS[Open Critical Issue]
+    IS --> HM[Human + AI follow-up]
 ```
 
-## 1-Minute Quickstart
+This gives early warnings before risky code reaches production flow.
 
-1. Copy these paths into your repository:
+## Real PoC from This Repository
+
+### PR PoC (real self-correction and reviews)
+
+- PR #89 (merged): refactor with real-data test enforcement  
+  https://github.com/BUZASLAN128/HiveMind-Actions/pull/89  
+  Evidence: reviewer triggered Jules loop (`Loop: 1/5`) comment in PR.
+
+- PR #79 (merged): supply-chain hardening by pinning Jules action SHA  
+  https://github.com/BUZASLAN128/HiveMind-Actions/pull/79
+
+- PR #88 (merged): config + metrics integration for swarm agents  
+  https://github.com/BUZASLAN128/HiveMind-Actions/pull/88
+
+### Issue PoC (real push-triggered critical findings)
+
+- Issue #91: Critical issue detected on commit `d6cd5d9`  
+  https://github.com/BUZASLAN128/HiveMind-Actions/issues/91
+
+- Issue #92: Critical issue detected on commit `8b39a2c`  
+  https://github.com/BUZASLAN128/HiveMind-Actions/issues/92
+
+- Issue #76: Earlier critical push detection example  
+  https://github.com/BUZASLAN128/HiveMind-Actions/issues/76
+
+## 1-Minute Setup
+
+1. Copy:
    - `.github/workflows/`
    - `.github/scripts/`
    - `.github/prompts/`
    - `.github/swarm_rules.md`
    - `.github/config.json`
-2. Add required secrets and variables in `Settings -> Secrets and variables -> Actions`.
-3. Create an issue and comment `@analyst`.
-4. Analyst runs, dispatches Coder (`workflow_dispatch`), Coder opens PR, Reviewer evaluates PR.
+2. Set secrets/vars in `Settings -> Secrets and variables -> Actions`.
+3. Open issue and comment `@analyst`.
 
-## Configuration Matrix (Source of Truth)
+## Config You Need
 
-### Secrets and Variables
-
-| Name | Required | Used By | Purpose |
-|---|---|---|---|
-| `GLM_API_KEY` | Yes (if provider=`glm`) | `agent-analyst.yml`, `agent-reviewer.yml` | GLM provider access |
-| `GEMINI_API_KEY` | Yes (if provider=`gemini`) | `agent-analyst.yml`, `agent-reviewer.yml` | Gemini provider access |
-| `JULES_API_KEY` | Yes | `agent-coder.yml`, `agent-reviewer.yml` | Coder execution + reviewer self-correction calls |
-| `APP_ID` | Optional | `agent-reviewer.yml` | GitHub App auth for branded bot identity |
-| `APP_PRIVATE_KEY` | Optional | `agent-reviewer.yml` | Pair for `APP_ID` |
-| `SWARM_MODEL_PROVIDER` | Optional (`glm` default) | `agent-analyst.yml`, `agent-reviewer.yml` | Select active model provider |
-
-### Workflow Permission Expectations
-
-| Workflow | Key Permissions |
-|---|---|
-| `agent-analyst.yml` | `actions: write`, issue/comment read-write |
-| `agent-coder.yml` | contents and PR write scopes for automation |
-| `agent-reviewer.yml` | pull request review/comment write scopes |
-
-## Trigger Matrix
-
-| Workflow | Trigger | Notes |
+| Name | Required | Purpose |
 |---|---|---|
-| `agent-analyst.yml` | `issue_comment` (`@analyst` or `@analyze`) | Entry point for tasks |
-| `agent-coder.yml` | `workflow_dispatch` | Dispatched by Analyst; centralized execution |
-| `agent-reviewer.yml` | `pull_request` (`opened`, `synchronize`, `ready_for_review`) | Reviews and may trigger self-correction |
+| `GLM_API_KEY` | Yes (if provider=`glm`) | GLM model access |
+| `GEMINI_API_KEY` | Yes (if provider=`gemini`) | Gemini model access |
+| `JULES_API_KEY` | Yes | Coder runs + reviewer self-correction |
+| `APP_ID` | Optional | GitHub App identity |
+| `APP_PRIVATE_KEY` | Optional | Pair for `APP_ID` |
+| `SWARM_MODEL_PROVIDER` | Optional (`glm` default) | Active provider selector |
+
+## Failure Recovery (Human-Readable)
+
+### Retry and recovery behavior
+
+- Core AI retry helper: **3 attempts** (exponential backoff + jitter).
+- Analyzer AI call: **3 retries**.
+- Reviewer AI call: **5 retries**.
+- Reviewer self-correction loop: **max 5 cycles** (`Loop: n/5`).
+
+### If automation cannot recover
+
+- Missing `JULES_API_KEY` -> reviewer posts failure comment.
+- Missing session continuity -> reviewer posts manual-action comment.
+- Retry limit reached (`5/5`) -> loop stops and human intervention is requested.
+
+### Exit behavior
+
+- Fatal script-level errors exit with `sys.exit(1)`.
+- Failed workflow steps are visible as failed GitHub Action jobs.
 
 ## Version and Release Policy
 
-Current public tags:
+Current tags: `v2.0.0`, `v2.1.0`, `v2.1.1`.
 
-- `v2.0.0`
-- `v2.1.0`
-- `v2.1.1`
+Next prep target: **v2.2.0**.
 
-Preparation target: `v2.2.0`.
+- `MAJOR`: breaking behavior.
+- `MINOR`: new capabilities.
+- `PATCH`: fixes and reliability.
 
-SemVer policy:
+Release prep docs:
 
-- `MAJOR`: breaking workflow/protocol changes.
-- `MINOR`: new capabilities without breaking current setup.
-- `PATCH`: bugfixes and reliability improvements.
+- `CHANGELOG.md`
+- `RELEASE_CHECKLIST.md`
 
-Tag vs Release:
+## Troubleshooting Fast
 
-- **Tag** marks source state (`git tag`).
-- **GitHub Release** is distribution metadata (notes, changelog mapping, assets if added).
-
-For `v2.2.0`, prepare changelog + release notes first, then create a proper GitHub Release from the tag.
-
-## Download and Release Channel
-
-- Releases page: https://github.com/BUZASLAN128/HiveMind-Actions/releases
-- Changelog source: `CHANGELOG.md`
-- Release checklist: `RELEASE_CHECKLIST.md`
-
-Recommended release content:
-
-- Summary of workflow-level changes
-- Breaking/non-breaking classification
-- Security or behavior-impact notes
-- Upgrade guidance from previous tag
-
-## Troubleshooting
-
-### Missing API key errors
-
-- Verify `GLM_API_KEY` or `GEMINI_API_KEY` based on `SWARM_MODEL_PROVIDER`.
-- Verify `JULES_API_KEY` exists for coder/reviewer handoff.
-- If reviewer self-correction is expected, `JULES_API_KEY` is mandatory.
-
-### Analyst does not trigger
-
-- Ensure comment is on an issue and includes `@analyst` or `@analyze`.
-- Ensure commenter has required repository permissions.
-
-### Coder not running after Analyst
-
-- Confirm `agent-analyst.yml` can dispatch workflow (`actions: write`).
-- Check Actions logs for `workflow_dispatch` payload and inputs.
-
-### Reviewer self-correction not firing
-
-- Confirm `JULES_API_KEY` is configured.
-- Confirm PR body/comments contain expected session markers.
-- Check reviewer logs for continuity lookup and API call errors.
-- Check whether retry ceiling is reached (`Max retries (5) reached` log/comment).
+- Analyst not triggering: verify issue comment includes `@analyst` or `@analyze`.
+- Coder not starting: check Analyst run has dispatch permission and valid payload.
+- Reviewer loop not running: verify `JULES_API_KEY` and PR session markers.
+- Too many failures: check if loop reached retry ceiling (`Max retries (5) reached`).
 
 ## FAQ
 
-### Should I use GLM or Gemini?
+### GLM or Gemini?
 
-- Use `glm` for default coding-focused flow.
-- Use `gemini` if your environment/team prefers Gemini behavior and key management.
+- Use `glm` for the default coding-focused route.
+- Use `gemini` if your team already standardizes on Gemini keys/workflows.
 
-### Do I need a GitHub App for this to work?
+### Do I need GitHub App branding?
 
-No. GitHub App setup (`APP_ID`, `APP_PRIVATE_KEY`) is optional for branding/identity improvements.
-
-### Is this only for large repositories?
-
-No. It works for small repositories too, and becomes more valuable as task/review load increases.
-
-## Roadmap (Short)
-
-- Improve release automation and notes generation
-- Add reliability metrics dashboarding for workflow outcomes
-- Expand documentation for enterprise permission models
-- Improve test strategy split (unit vs e2e vs provider-gated)
+No. It works with default bot identity. GitHub App setup is optional.
 
 ## Contributing and Security
 
 - Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Security policy: [SECURITY.md](SECURITY.md)
-- Project license: [LICENSE](LICENSE)
+- License: [LICENSE](LICENSE)
