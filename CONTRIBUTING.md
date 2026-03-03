@@ -1,48 +1,51 @@
-# 🤝 Contributing to HiveMind Actions
+# Contributing to HiveMind Actions
 
-We love your input! We want to make contributing to HiveMind as easy and transparent as possible, whether it's:
+Thanks for contributing.
 
-- Reporting a bug
-- Discussing the current state of the code
-- Submitting a fix
-- Proposing new features
-- Becoming a maintainer
+## Contribution Flow (PR to `main`)
 
-## 📞 Contact
-For security issues or urgent matters, please contact: **buzaslan.ea@gmail.com**
+1. Fork the repository.
+2. Clone your fork.
+3. Create a feature branch.
+4. Make focused changes.
+5. Push your branch.
+6. Open a Pull Request targeting `main`.
 
-## 👩‍💻 Development Process
+Example:
 
-1.  **Fork** the repo on GitHub.
-2.  **Clone** the project to your own machine.
-3.  **Create a Branch** for your changes.
-    ```bash
-    git checkout -b feature/amazing-feature
-    ```
-4.  **Commit** changes to your own branch.
-    ```bash
-    git commit -B "feat: Add amazing feature"
-    ```
-5.  **Push** your work back up to your fork.
-    ```bash
-    git push origin feature/amazing-feature
-    ```
-6.  **Submit a Pull Request** so that we can review your changes.
+```bash
+git checkout -b feature/amazing-feature
+git add .
+git commit -m "feat: add amazing feature"
+git push origin feature/amazing-feature
+```
 
-## 🤖 AI-Powered Review Process
+## Minimal Validation Before PR
 
-HiveMind itself protects this repository! 🤯
-When you open a PR:
-1.  **Analyst & Reviewer Agents** will automatically inspect your code.
-2.  They will check for **Security**, **Best Practices**, and **Golden Rules**.
-3.  If they request changes, please address them.
-4.  Once the AI is satisfied, the **Human Maintainer** (@BUZASLAN128) will do the final merge approval.
+- Confirm workflow docs match implementation files in `.github/workflows/`.
+- Validate links and section integrity in `README.md`.
+- Run Python tests after dependencies are installed:
 
-## 📝 Rules
+```bash
+python -m pip install -r .github/requirements.txt
+python -m pytest .github/scripts/test_ai_utils.py .github/scripts/test_analyzer.py -q
+```
 
-- **Follow the Golden Rules:** Check `.github/swarm_rules.md`.
-- **Clean Code:** Keep it simple, readable, and documented.
-- **Tests:** Adding new features? Add tests.
+## AI Review Process
 
-## 📄 License
-By contributing, you agree that your contributions will be licensed under its MIT License.
+- Analyst/Coder/Reviewer workflows are part of the repository quality gate.
+- Reviewer may request or trigger self-correction if quality criteria are not met.
+
+## Ground Rules
+
+- Follow `.github/swarm_rules.md`.
+- Keep changes small, clear, and documented.
+- Do not commit secrets or private credentials.
+
+## Contact
+
+For urgent security matters: **buzaslan.ea@gmail.com**
+
+## License
+
+By contributing, you agree that contributions are licensed under the MIT License.

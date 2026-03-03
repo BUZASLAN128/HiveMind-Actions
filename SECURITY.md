@@ -2,21 +2,39 @@
 
 ## Supported Versions
 
-Use the latest version of HiveMind.
+| Version | Supported |
+| --- | --- |
+| `2.1.x` | Yes |
+| `2.0.x` | Best effort |
+| `< 2.0.0` | No |
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 2.x     | :white_check_mark: |
-| 1.x     | :x:                |
+Policy: latest minor on `main` is the primary supported line.
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+Do not use public GitHub issues for vulnerabilities.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Report privately via email:
+- **buzaslan.ea@gmail.com**
 
-**Do not report security vulnerabilities through public GitHub issues.**
+Include:
+- affected version/tag
+- impact summary
+- reproduction details
+- possible mitigation (if known)
 
-Please report them via email to **buzaslan.ea@gmail.com**.
+## Response Expectations
+
+- Initial acknowledgement: within 72 hours
+- Triage and severity classification: within 7 days
+- Fix/mitigation target:
+  - Critical: 7-14 days
+  - High: 14-30 days
+  - Medium/Low: next planned release
+
+## Disclosure Process
+
+1. Intake and validation
+2. Severity and scope assessment
+3. Patch development and internal verification
+4. Coordinated disclosure in release notes/changelog
