@@ -6,13 +6,25 @@ HiveMind Actions is a serverless multi-agent workflow for repositories that want
 
 ## Quick Links
 
-- Repository: https://github.com/BUZASLAN128/HiveMind-Actions
-- Actions: https://github.com/BUZASLAN128/HiveMind-Actions/actions
-- Releases: https://github.com/BUZASLAN128/HiveMind-Actions/releases
-- Latest Tag: https://github.com/BUZASLAN128/HiveMind-Actions/releases/tag/v2.1.1
-- Analyst Workflow: https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-analyst.yml
-- Coder Workflow: https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-coder.yml
-- Reviewer Workflow: https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-reviewer.yml
+| Destination | Link | External visitor access |
+|---|---|---|
+| Repository | https://github.com/BUZASLAN128/HiveMind-Actions | Code, docs, tags, stars, forks |
+| Actions Hub | https://github.com/BUZASLAN128/HiveMind-Actions/actions | All workflow runs and run history |
+| Releases | https://github.com/BUZASLAN128/HiveMind-Actions/releases | Release notes and downloadable assets |
+| Latest Tag | https://github.com/BUZASLAN128/HiveMind-Actions/releases/tag/v2.1.1 | Snapshot for latest tagged version |
+| Analyst Workflow | https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-analyst.yml | Workflow definition + analyst run list |
+| Coder Workflow | https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-coder.yml | Workflow definition + coder run list |
+| Reviewer Workflow | https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-reviewer.yml | Workflow definition + reviewer run list |
+
+Public visibility note: this repository is public, so outside visitors can open the links above directly.
+
+### Where Analyst / Coder / Reviewer Pages Are Found
+
+1. Open the repository home page.
+2. Click the **Actions** tab.
+3. In the left panel, select **Analyst Workflow**, **Coder Workflow**, or **Reviewer Workflow**.
+
+## Live Workflow Status
 
 [![Analyst Workflow](https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-analyst.yml/badge.svg)](https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-analyst.yml)
 [![Coder Workflow](https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-coder.yml/badge.svg)](https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-coder.yml)
