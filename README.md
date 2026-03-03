@@ -1,204 +1,154 @@
-# 🧠 HiveMind Actions 2.0
+# HiveMind Actions
 
-> **The First "Serverless" Swarm AI for GitHub Actions.**  
-> Turn your repository into a self-healing, multi-agent AI workspace with zero infrastructure cost.
+Serverless multi-agent automation for GitHub Actions: Analyst plans, Coder implements, Reviewer verifies, and self-correction closes the loop.
 
-[![Live Issue #1](https://img.shields.io/badge/HiveMind-Live_Issue_%231-blue?style=for-the-badge&logo=github)](https://github.com/BUZASLAN128/HiveMind-Actions/issues/1)
-[![Live PR #32](https://img.shields.io/badge/HiveMind-Live_Issue_%231-blue?style=for-the-badge&logo=github)](https://github.com/BUZASLAN128/HiveMind-Actions/pull/32)
+## Quick Links
 
----
+- Repository: https://github.com/BUZASLAN128/HiveMind-Actions
+- Actions: https://github.com/BUZASLAN128/HiveMind-Actions/actions
+- Analyst Workflow: https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-analyst.yml
+- Coder Workflow: https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-coder.yml
+- Reviewer Workflow: https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-reviewer.yml
+- Releases: https://github.com/BUZASLAN128/HiveMind-Actions/releases
+- Latest Tag: https://github.com/BUZASLAN128/HiveMind-Actions/releases/tag/v2.1.1
 
-## 🌟 What is this?
+[![Analyst Workflow](https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-analyst.yml/badge.svg)](https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-analyst.yml)
+[![Coder Workflow](https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-coder.yml/badge.svg)](https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-coder.yml)
+[![Reviewer Workflow](https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-reviewer.yml/badge.svg)](https://github.com/BUZASLAN128/HiveMind-Actions/actions/workflows/agent-reviewer.yml)
 
-**HiveMind** is not just a bot. It's a **collaborative AI Swarm** that lives inside your GitHub Actions.
-It enables **Analyst**, **Coder**, and **Reviewer** agents to work together, autonomously planning, coding, reviewing, and **fixing their own mistakes** without your intervention.
+## What It Does
 
-Think of it as having a **Senior Developer** (Jules) and a **Staff Engineer** (Reviewer) working 24/7 on your repo, for free (using Gemini Free Tier).
+HiveMind Actions turns a repository into an autonomous collaboration flow:
 
----
+- Analyst converts issue intent into implementable plans.
+- Coder executes the plan and opens/updates PRs.
+- Reviewer checks code quality, security, and project rules.
+- Reviewer can trigger self-correction when PR quality is insufficient.
 
-## 🔥 Why HiveMind? (Killer Features)
+## 1-Minute Quickstart
 
-### 1. ♾️ Autonomous Self-Correction Loop
+1. Copy these paths into your repository:
+   - `.github/workflows/`
+   - `.github/scripts/`
+   - `.github/prompts/`
+   - `.github/swarm_rules.md`
+   - `.github/config.json`
+2. Add required secrets and variables in `Settings -> Secrets and variables -> Actions`.
+3. Create an issue and comment `@analyst`.
+4. Analyst runs, dispatches Coder (`workflow_dispatch`), Coder opens PR, Reviewer evaluates PR.
 
-The most powerful feature. If the **Reviewer** agent finds a bug or security flaw in a PR:
+## Configuration Matrix (Source of Truth)
 
-1. It **REJECTS** the PR.
-2. It talks directly to **Jules** (the Coder) via API.
-3. Jules **fixes the code** and pushes a new commit.
-4. The Reviewer **re-evaluates** the fix.
-5. This loop continues until the code is perfect. **You sleep, they work.**
+### Secrets and Variables
 
-### 2. 🧠 Smart Context & Golden Rules
+| Name | Required | Used By | Purpose |
+|---|---|---|---|
+| `GLM_API_KEY` | Yes (if provider=`glm`) | `agent-analyst.yml`, `agent-reviewer.yml` | GLM provider access |
+| `GEMINI_API_KEY` | Yes (if provider=`gemini`) | `agent-analyst.yml`, `agent-reviewer.yml` | Gemini provider access |
+| `JULES_API_KEY` | Yes | `agent-coder.yml`, `agent-reviewer.yml` | Coder execution + reviewer self-correction calls |
+| `APP_ID` | Optional | `agent-reviewer.yml` | GitHub App auth for branded bot identity |
+| `APP_PRIVATE_KEY` | Optional | `agent-reviewer.yml` | Pair for `APP_ID` |
+| `SWARM_MODEL_PROVIDER` | Optional (`glm` default) | `agent-analyst.yml`, `agent-reviewer.yml` | Select active model provider |
 
-HiveMind doesn't just "guess". It follows your **Golden Rules** defined in `.github/swarm_rules.md`.
+### Workflow Permission Expectations
 
-- Have a specific architectural style? Write it down.
-- Want to ban `any` type in TypeScript? Add a rule.
-- The Swarm **strictly enforces** your standards.
+| Workflow | Key Permissions |
+|---|---|
+| `agent-analyst.yml` | `actions: write`, issue/comment read-write |
+| `agent-coder.yml` | contents and PR write scopes for automation |
+| `agent-reviewer.yml` | pull request review/comment write scopes |
 
-### 3. 🛡️ Beast Mode (Proactive Security)
+## Trigger Matrix
 
-HiveMind acts as an **always-on security guard**.
+| Workflow | Trigger | Notes |
+|---|---|---|
+| `agent-analyst.yml` | `issue_comment` (`@analyst` or `@analyze`) | Entry point for tasks |
+| `agent-coder.yml` | `workflow_dispatch` | Dispatched by Analyst; centralized execution |
+| `agent-reviewer.yml` | `pull_request` (`opened`, `synchronize`, `ready_for_review`) | Reviews and may trigger self-correction |
 
-- Pushed code to `any`? The Reviewer inspects it instantly.
-- Found a critical vulnerability? It autonomously **opens an Issue** and assigns it to the team.
-- No security hole goes unnoticed.
+## Version and Release Policy
 
-### 4. ⚡ Competitive Intelligence (Smart Actions)
+Current public tags:
 
-- **Smart Ignore:** Automatically skips junk files (`package-lock.json`, `dist/`, `*.min.js`) to save tokens and reduce noise.
-- **Auto-Labeler:** AI analyzes your PR and tags it automatically (`bug`, `feature`, `security`, `refactor`).
-- **Token Optimization:** Uses efficient diff parsing to handle large PRs without breaking the bank.
+- `v2.0.0`
+- `v2.1.0`
+- `v2.1.1`
 
-### 5. Zero-Config (Serverless)
+Preparation target: `v2.2.0`.
 
-No servers to manage. No Docker containers to host.
+SemVer policy:
 
-- Runs entirely on **GitHub Actions runners**.
-- Uses **Google Gemini 2.0 Flash** or **GLM-4.7** (configurable).
-- Just copy the workflow files and you're done.
+- `MAJOR`: breaking workflow/protocol changes.
+- `MINOR`: new capabilities without breaking current setup.
+- `PATCH`: bugfixes and reliability improvements.
 
-### 6. Multi-Model AI Support
+Tag vs Release:
 
-HiveMind supports multiple AI providers out of the box:
+- **Tag** marks source state (`git tag`).
+- **GitHub Release** is distribution metadata (notes, changelog mapping, assets if added).
 
-| Provider | Models | Best For | Cost |
-|----------|--------|----------|------|
-| **GLM-4.7** (z.ai) | glm-4.7, glm-4.6, glm-4.5, glm-4.5-Air | Coding tasks, Turkish support | Coding Plan (free tier available) |
-| **Gemini** (Google) | gemini-2.0-flash, gemini-1.5-pro | General analysis, fast responses | Free tier available |
+For `v2.2.0`, prepare changelog + release notes first, then create a proper GitHub Release from the tag.
 
-**Configuration:**
+## Download and Release Channel
 
-```bash
-# In GitHub Secrets:
-GLM_API_KEY=your-z.ai-api-key
-GEMINI_API_KEY=your-google-api-key
+- Releases page: https://github.com/BUZASLAN128/HiveMind-Actions/releases
+- Changelog source: `CHANGELOG.md`
+- Release checklist: `RELEASE_CHECKLIST.md`
 
-# In GitHub Variables:
-SWARM_MODEL_PROVIDER=glm  # or 'gemini'
-```
+Recommended release content:
 
----
+- Summary of workflow-level changes
+- Breaking/non-breaking classification
+- Security or behavior-impact notes
+- Upgrade guidance from previous tag
 
-## 🤖 The Swarm Agents
+## Troubleshooting
 
-| Agent | Icon | Role | Superpower |
-|-------|------|------|------------|
-| **Analyst** | 🔍 | Architect | Breaks down complex issues into step-by-step plans. |
-| **Coder (Jules)** | 🐝 | Droneworker | Writes code, fixes bugs, and handles git operations autonomously. |
-| **Reviewer** | 🔎 | Quality Gate | Enforces rules, checks security, and **blocks bad PRs**. |
+### Missing API key errors
 
-### 🔄 The HiveMind Workflow: How Agents are Triggered
+- Verify `GLM_API_KEY` or `GEMINI_API_KEY` based on `SWARM_MODEL_PROVIDER`.
+- Verify `JULES_API_KEY` exists for coder/reviewer handoff.
 
-The HiveMind Swarm operates in a sequential, predictable, and centralized manner to ensure stability and prevent redundant operations. Here’s how the agents collaborate:
+### Analyst does not trigger
 
-1. **🔍 Analyst Agent (`agent-analyst.yml`)**
-    - **Trigger:** A user with write-access posts a comment containing `@analyst` or `@analyze` on an issue.
-    - **Action:** The Analyst assesses the issue, gathers context from the codebase, and creates a detailed implementation plan.
-    - **Output:** It triggers the Coder Agent by dispatching a `workflow_dispatch` event.
+- Ensure comment is on an issue and includes `@analyst` or `@analyze`.
+- Ensure commenter has required repository permissions.
 
-2. **🤖 Coder Agent (`agent-coder.yml`)**
-    - **Trigger:** Receives a `workflow_dispatch` event exclusively from the Analyst Agent.
-        - **Note:** Manual triggers (via issue comments or labels) have been **removed** to centralize control and prevent the agent from running multiple times on the same task.
-    - **Action:** The Coder (Jules) executes the plan from the Analyst, writes code, runs tests, and opens a pull request.
-    - **Output:** A pull request ready for review.
+### Coder not running after Analyst
 
-3. **🔎 Reviewer Agent (`agent-reviewer.yml`)**
-    - **Trigger:** A pull request is `opened`, `synchronize`d (a new commit is pushed), or marked `ready_for_review`.
-    - **Action:** The Reviewer inspects the code changes against the project's golden rules (`swarm_rules.md`), checks for security vulnerabilities, and analyzes for bugs.
-    - **Output:**
-        - **If Approved:** The pull request is approved and can be merged.
-        - **If Rejected:** The Reviewer initiates the **Self-Correction Loop**, sending feedback directly to the Coder Agent to fix the issues automatically.
+- Confirm `agent-analyst.yml` can dispatch workflow (`actions: write`).
+- Check Actions logs for `workflow_dispatch` payload and inputs.
 
-This centralized, dispatch-based flow ensures that each agent acts only when it's supposed to, creating a robust and reliable automation pipeline.
+### Reviewer self-correction not firing
 
-```mermaid
-graph TD
-    subgraph "Step 1: Analysis"
-        A["👤 User posts comment on Issue<br>('@analyst')"] --> B["[agent-analyst.yml]<br>🔍 Analyst Agent"];
-    end
-    subgraph "Step 2: Coding"
-        B -- "Triggers Coder via workflow_dispatch" --> C["[agent-coder.yml]<br>🤖 Coder Agent (Jules)"];
-        C -- "Opens a Pull Request" --> D;
-    end
-    subgraph "Step 3: Review & Self-Correction"
-        D["[agent-reviewer.yml]<br>🔎 Reviewer Agent"] -- "Inspects PR" --> E{"Verdict?"};
-        E -- "✅ Approved" --> F["PR Merged"];
-        E -- "❌ Rejected" --> G["Self-Correction Loop<br>(Reviewer tells Coder to fix it)"];
-        G --> C;
-    end
-```
+- Confirm `JULES_API_KEY` is configured.
+- Confirm PR body/comments contain expected session markers.
+- Check reviewer logs for continuity lookup and API call errors.
 
----
+## FAQ
 
-## 🛠️ Installation
+### Should I use GLM or Gemini?
 
-### Step 1: Clone the Brain
+- Use `glm` for default coding-focused flow.
+- Use `gemini` if your environment/team prefers Gemini behavior and key management.
 
-Copy these folders to your repository:
+### Do I need a GitHub App for this to work?
 
-```bash
-.github/workflows/
-.github/scripts/
-.github/prompts/
-.github/swarm_rules.md
-```
+No. GitHub App setup (`APP_ID`, `APP_PRIVATE_KEY`) is optional for branding/identity improvements.
 
-### Step 2: Add Secrets & Variables
+### Is this only for large repositories?
 
-Go to **Settings > Secrets and variables > Actions** and add:
+No. It works for small repositories too, and becomes more valuable as task/review load increases.
 
-**Secrets:**
+## Roadmap (Short)
 
-- `GLM_API_KEY`: Your z.ai API Key (for GLM-4.7 - recommended)
-- `GEMINI_API_KEY`: Your Google Gemini API Key (alternative)
-- `JULES_API_KEY`: API Key for the Coder Agent trigger.
+- Improve release automation and notes generation
+- Add reliability metrics dashboarding for workflow outcomes
+- Expand documentation for enterprise permission models
+- Improve test strategy split (unit vs e2e vs provider-gated)
 
-**Variables:**
+## Contributing and Security
 
-- `SWARM_MODEL_PROVIDER`: Set to `glm` or `gemini` (default: `glm`)
-
-### Step 3: Define Roles
-
-Edit `.github/swarm_rules.md` to set your project's constitution.
-
----
-
-## 🎨 Bot Customization & Branding
-
-Want your AI to look professional? You can customize the bot's identity.
-
-### Option A: Zero Config (Default)
-
-Uses the standard `github-actions[bot]`.
-
-- **Pros:** No setup required.
-- **Cons:** Generic avatar.
-
-### Option B: Custom Brand (Pro)
-
-Use your own App Name and Logo (e.g., `EnesBot`).
-
-1. Create a [GitHub App](https://github.com/settings/apps/new)
-2. Permissions: `Contents: Read & Write`, `Issues: Read & Write`, `Pull Requests: Read & Write`
-3. Generate **Private Key** and get **App ID**.
-4. Add Secrets: `APP_ID` and `APP_PRIVATE_KEY`.
-
-**Result:** Your bot comments with **your logo** (like the one we generated!) and name.
-
----
-
-## 🤝 Contributing & Support
-
-We love community contributions!
-
-- See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-- **Rules:** All PRs must pass the AI Reviewer checks.
-- **Contact:** [buzaslan.ea@gmail.com](mailto:buzaslan.ea@gmail.com)
-
----
-
-## 📜 License
-
-MIT - Free to fork, free to use, free to conquer.
+- Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Security policy: [SECURITY.md](SECURITY.md)
+- Project license: [LICENSE](LICENSE)
