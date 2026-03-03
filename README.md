@@ -56,19 +56,13 @@ This gives early warnings before risky code reaches production flow.
 
 ## Real PoC from This Repository
 
-### PR PoC (real self-correction and reviews)
+### Verified Self-Correction PoC (PR)
 
 - PR #89 (merged): refactor with real-data test enforcement  
   https://github.com/BUZASLAN128/HiveMind-Actions/pull/89  
-  Evidence: reviewer triggered Jules loop (`Loop: 1/5`) comment in PR.
+  Verified evidence in PR comments: reviewer triggered Jules loop (`Loop: 1/5`) and posted session continuity marker.
 
-- PR #79 (merged): supply-chain hardening by pinning Jules action SHA  
-  https://github.com/BUZASLAN128/HiveMind-Actions/pull/79
-
-- PR #88 (merged): config + metrics integration for swarm agents  
-  https://github.com/BUZASLAN128/HiveMind-Actions/pull/88
-
-### Issue PoC (real push-triggered critical findings)
+### Verified Auto-Review PoC (Push -> Critical Issue)
 
 - Issue #91: Critical issue detected on commit `d6cd5d9`  
   https://github.com/BUZASLAN128/HiveMind-Actions/issues/91
@@ -78,6 +72,14 @@ This gives early warnings before risky code reaches production flow.
 
 - Issue #76: Earlier critical push detection example  
   https://github.com/BUZASLAN128/HiveMind-Actions/issues/76
+
+### Additional Delivery Examples (Not loop evidence)
+
+- PR #79 (merged): supply-chain hardening by pinning Jules action SHA  
+  https://github.com/BUZASLAN128/HiveMind-Actions/pull/79
+
+- PR #88 (merged): config + metrics integration for swarm agents  
+  https://github.com/BUZASLAN128/HiveMind-Actions/pull/88
 
 ## 1-Minute Setup
 
