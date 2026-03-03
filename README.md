@@ -10,14 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/BUZASLAN128/HiveMind-Actions"><img src="https://img.shields.io/github/stars/BUZASLAN128/HiveMind-Actions?style=flat-square" alt="GitHub stars"/></a>
-  <a href="https://github.com/BUZASLAN128/HiveMind-Actions/releases"><img src="https://img.shields.io/github/v/tag/BUZASLAN128/HiveMind-Actions?style=flat-square" alt="Latest tag"/></a>
-  <a href="https://github.com/BUZASLAN128/HiveMind-Actions/pulls"><img src="https://img.shields.io/github/issues-pr/BUZASLAN128/HiveMind-Actions?style=flat-square" alt="Open PRs"/></a>
-</p>
-
-<p align="center">
   <a href="https://github.com/BUZASLAN128/HiveMind-Actions/actions"><b>View Actions</b></a> |
-  <a href="https://github.com/BUZASLAN128/HiveMind-Actions/pull/89"><b>See Self-Correction PoC</b></a> |
+  <a href="https://github.com/BUZASLAN128/HiveMind-Actions/pulls?q=is%3Apr+is%3Amerged"><b>See Merged PR Examples</b></a> |
   <a href="https://github.com/BUZASLAN128/HiveMind-Actions/issues/76"><b>See Push Review PoC</b></a> |
   <a href="https://github.com/BUZASLAN128/HiveMind-Actions/releases"><b>Releases</b></a>
 </p>
@@ -42,11 +36,6 @@ HiveMind turns GitHub events into an autonomous delivery loop:
 
 ## Live Proof from This Repository
 
-### Verified self-correction
-
-- PR #89 (merged): reviewer loop evidence (`Loop: 1/5`)  
-  https://github.com/BUZASLAN128/HiveMind-Actions/pull/89
-
 ### Verified push-level critical detection
 
 - Issue #76: https://github.com/BUZASLAN128/HiveMind-Actions/issues/76
@@ -55,7 +44,7 @@ HiveMind turns GitHub events into an autonomous delivery loop:
 
 Note: examples above are selected from reviewer findings with real code-review output (not balance/quota failures).
 
-### Additional delivery examples
+### Featured merged PR examples
 
 - PR #79 (supply-chain hardening): https://github.com/BUZASLAN128/HiveMind-Actions/pull/79
 - PR #88 (config + metrics): https://github.com/BUZASLAN128/HiveMind-Actions/pull/88
