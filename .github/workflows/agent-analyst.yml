@@ -47,7 +47,7 @@ jobs:
 
       - name: Acknowledge & Setup Status
         id: setup
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const marker = '<!-- SWARM_STATUS_REPORT -->';
@@ -147,7 +147,7 @@ jobs:
           python .github/scripts/swarm_analyzer.py
 
       - name: Post Analysis & Trigger Coder
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         if: steps.analysis.outputs.should_proceed == 'true'
         env:
           COMMENT_ID: ${{ steps.setup.outputs.comment_id }}
@@ -228,7 +228,7 @@ jobs:
 
       - name: Notify Failure
         if: steps.analysis.outputs.should_proceed != 'true'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           COMMENT_ID: ${{ steps.setup.outputs.comment_id }}
           IS_ISSUE: ${{ steps.setup.outputs.is_issue }}

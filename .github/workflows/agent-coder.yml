@@ -60,7 +60,7 @@ jobs:
         env:
           INPUT_ISSUE_NUMBER: ${{ github.event.inputs.issue_number }}
           INPUT_CODER_PROMPT: ${{ github.event.inputs.coder_prompt }}
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             let shouldRun = false;
@@ -128,7 +128,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Notify Coder Starting
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           ISSUE_NUMBER: ${{ needs.check-trigger.outputs.issue_number }}
         with:
@@ -241,7 +241,7 @@ jobs:
             Use English for commit messages.
 
       - name: Notify Coder Invoked
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           ISSUE_NUMBER: ${{ needs.check-trigger.outputs.issue_number }}
         with:
